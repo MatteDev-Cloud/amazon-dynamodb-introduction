@@ -1,0 +1,19 @@
+version = 0.1
+
+[dev.deploy.parameters]
+stack_name = "dynamolive-dev"
+region = "eu-central-1"
+profile = "dev"
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+parameter_overrides = "Environment=dev"
+
+[live.deploy.parameters]
+stack_name = "dynamolive-live"
+region = "eu-central-1"
+profile = "live"
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+parameter_overrides = "Environment=live"

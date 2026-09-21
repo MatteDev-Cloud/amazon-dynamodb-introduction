@@ -1,0 +1,33 @@
+{
+  "name": "dynamolive",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:api": "tsx --env-file-if-exists=.env backend/local-server.ts",
+    "seed": "tsx --env-file-if-exists=.env scripts/seed-local.ts",
+    "reset": "tsx --env-file-if-exists=.env scripts/reset-session.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test backend/test/unit.test.ts",
+    "test:integration": "tsx --env-file-if-exists=.env --test backend/test/integration.test.ts",
+    "test:smoke": "tsx --env-file-if-exists=.env scripts/smoke-local.ts",
+    "build:backend": "node scripts/build.mjs",
+    "bot:pixel": "tsx bots/pixel-bot.ts",
+    "bot:hotkey": "tsx bots/hotkey-bot.ts",
+    "bot:runner": "tsx bots/runner.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1136.0",
+    "@aws-sdk/lib-dynamodb": "^3.1136.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.163",
+    "@types/node": "^26.6.2",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

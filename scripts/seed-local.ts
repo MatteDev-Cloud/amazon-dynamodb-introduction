@@ -1,0 +1,13 @@
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { configuration } from '../backend/src/lib/config.js';
+import { createApp } from '../backend/src/app.js';
+import { ensureTable } from './table.js';
+import { parseArgs } from 'node:util';
+const config=configuration();
+if(!config.endpoint || !['localhost','127.0.0.1','[::1]'].includes(new URL(config.endpoint).hostname)) throw new Error('Seed only targets a loopback DynamoDB Local endpoint');
+const client=new DynamoDBClient({endpoint:config.endpoint,region:config.region,credentials:{accessKeyId:'local',secretAccessKey:'local'}});
+await ensureTable(client,config.tableName);
+const {values}=parseArgs({options:{sid:{type:'string',default:'prova-01'}}});
+const result=await createApp(config)({method:'POST',path:`/s/${values.sid}/admin/reset`,headers:{'x-admin-key':config.adminKey},query:{},body:{}});
+console.log(result.statusCode,result.body);client.destroy();
+if(result.statusCode!==201 && result.statusCode!==409) process.exitCode=1;

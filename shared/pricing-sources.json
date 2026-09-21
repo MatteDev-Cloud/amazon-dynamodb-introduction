@@ -1,0 +1,29 @@
+{
+  "retrievedAt": "2026-09-21",
+  "region": "eu-central-1",
+  "currency": "USD",
+  "notes": "DynamoDB Standard on-demand; HTTP API first 300M requests; Lambda arm64 first compute tier. Before free tier, credits and taxes. Linear projections keep these base rates.",
+  "sources": [
+    {
+      "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonDynamoDB/current/eu-central-1/index.json",
+      "publicationDate": "2026-09-11T12:44:22Z",
+      "rates": [
+        {"sku": "9G7XEGBNEMAXT6EE", "usage": "EUC1-WriteRequestUnits", "usdPerUnit": 0.0000007625},
+        {"sku": "GA5XQXTMQJ8CBEU4", "usage": "EUC1-ReadRequestUnits", "usdPerUnit": 0.0000001525}
+      ]
+    },
+    {
+      "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonApiGateway/current/eu-central-1/index.json",
+      "publicationDate": "2026-09-11T12:44:08Z",
+      "rates": [{"sku": "T5HBB5E3DWVQPUNF", "usage": "EUC1-ApiGatewayHttpRequest", "usdPerUnit": 0.0000012}]
+    },
+    {
+      "url": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSLambda/current/eu-central-1/index.json",
+      "publicationDate": "2026-09-19T00:23:59Z",
+      "rates": [
+        {"sku": "UVYYDZQ83GKQ2K6C", "usage": "EUC1-Request-ARM", "usdPerUnit": 0.0000002},
+        {"sku": "6PPNGCBXY95TENXZ", "usage": "EUC1-Lambda-GB-Second-ARM", "usdPerUnit": 0.0000133334}
+      ]
+    }
+  ]
+}
