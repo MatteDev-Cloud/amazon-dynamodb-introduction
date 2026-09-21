@@ -1,0 +1,7 @@
+export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className='', text='') => {const node=document.createElement(tag);node.className=className;node.textContent=text;return node;};
+export const button=(label:string,action:()=>unknown,className='')=>{const b=el('button',className,label);b.type='button';b.onclick=()=>{void action();};return b;};
+export function json(value:unknown){const p=el('pre','json');const code=el('code');const source=JSON.stringify(value,null,2) ?? ''; const pattern=/("(?:[^"\\]|\\.)*"\s*:|"(?:[^"\\]|\\.)*"|\b(?:true|false|null)\b|-?\b\d+(?:\.\d+)?\b)/g; let last=0; for(const match of source.matchAll(pattern)){code.append(document.createTextNode(source.slice(last,match.index)));const token=el('span',match[0].trimEnd().endsWith(':')?'json-key':'json-value',match[0]);code.append(token);last=match.index!+match[0].length;}code.append(document.createTextNode(source.slice(last))); p.append(code);return p;}
+export function time(ms:number){const secs=Math.max(0,Math.ceil(ms/1000));return `${Math.floor(secs/60).toString().padStart(2,'0')}:${(secs%60).toString().padStart(2,'0')}`;}
+export const message=(error:unknown)=>error instanceof Error?error.message:'Operazione non riuscita';
+
+export function ttlTime(ms:number){const seconds=Math.max(0,Math.ceil(ms/1000));return `${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds/60)%60).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;}
