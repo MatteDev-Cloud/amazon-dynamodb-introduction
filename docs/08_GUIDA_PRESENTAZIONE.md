@@ -16,23 +16,33 @@ Da radice del repository:
 npm --prefix frontend ci
 ```
 
-Copiare `frontend/.env.example` in `frontend/.env`, senza sovrascrivere una configurazione già presente. Esempio PowerShell:
+Tre file di esempio, uno per ciascun ambiente, non uno solo ambiguo: copiare quello giusto in base a cosa si sta facendo, senza sovrascrivere una configurazione già presente.
+
+| File di esempio | Uso | Comando che lo legge |
+| --- | --- | --- |
+| `frontend/.env.development.example` → `.env.development` | Iterazione locale, backend locale | `npm run dev` |
+| `frontend/.env.dev.example` → `.env.dev` | Build per lo stack AWS `dynamolive-dev` | `npm run build:dev` |
+| `frontend/.env.live.example` → `.env.live` | Build per lo stack AWS `dynamolive-live` (il talk) | `npm run build:live` |
+
+Esempio PowerShell per lo sviluppo locale:
 
 ```powershell
-Copy-Item frontend/.env.example frontend/.env
+Copy-Item frontend/.env.development.example frontend/.env.development
 ```
+
+Per i build di deploy, copiare `.env.dev.example`/`.env.live.example` nell'equivalente senza `.example` e compilare gli URL reali (API Gateway e CloudFront) dopo il deploy SAM descritto in `07_GUIDA_TECNICA.md`.
 
 Impostazioni:
 
 | Variabile | Significato |
 | --- | --- |
 | VITE_API_BASE | URL del backend raggiungibile dal browser |
-| VITE_SESSION | sid predefinito; iniziale prova-01 |
-| VITE_PUBLIC_ORIGIN | Origine pubblica/LAN della SPA per i QR |
+| VITE_SESSION | sid predefinito; iniziale prova-01 (talk-01 in `.env.live`) |
+| VITE_PUBLIC_ORIGIN | Origine pubblica/LAN della SPA per i QR (solo dev/live, non serve in locale) |
 | VITE_DOCUMENT_URL | Link al PDF; predefinito /dynamolive-approfondimento.pdf |
 | VITE_BACKUP_URL | Video locale; predefinito /backup.mp4 |
-| VITE_LOCAL_API | API da usare con L |
-| VITE_LOCAL_SESSION | Sessione già preparata per L; predefinita prova-01 |
+| VITE_LOCAL_API | API da usare con L (solo dev/live: fallback verso il backend locale) |
+| VITE_LOCAL_SESSION | Sessione già preparata per L (solo dev/live) |
 
 Le variabili VITE sono pubbliche e incorporate alla build. Non inserirvi credenziali. La chiave admin si inserisce nel pannello Regia e resta in sessionStorage, distinta per API e sid. Il telefono invia soltanto la propria credenziale pid.
 
@@ -49,7 +59,7 @@ In LAN, impostare VITE_PUBLIC_ORIGIN con l'IP del portatile, per esempio `http:/
 ```sh
 npm --prefix frontend run typecheck
 npm --prefix frontend test
-npm --prefix frontend run build
+npm --prefix frontend run build:dev   # oppure build:live per lo stack del talk
 npm --prefix frontend run preview
 ```
 
