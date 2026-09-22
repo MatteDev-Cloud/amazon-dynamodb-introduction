@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc --noEmit && vite build",
+    "build:dev": "tsc --noEmit && vite build --mode dev",
+    "build:live": "tsc --noEmit && vite build --mode live",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --experimental-transform-types --test src/test/*.test.ts"
@@ -19,6 +20,6 @@
   "devDependencies": {
     "@types/qrcode": "1.5.5",
     "typescript": "5.9.3",
-    "vite": "7.3.1"
+    "vite": "7.3.6"
   }
 }
