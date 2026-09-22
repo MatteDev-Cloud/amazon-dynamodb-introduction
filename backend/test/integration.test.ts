@@ -4,6 +4,7 @@ import { DynamoDBClient, DeleteTableCommand } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { createApp } from '../src/app.js';
 import { ensureTable } from '../../scripts/table.js';
+import { LOGO_CELLS } from '../../shared/logo.js';
 
 test('real DynamoDB Local: lifecycle, transactions, retries, moderation, recovery and expiry',async t=>{
   const endpoint=process.env.DDB_ENDPOINT??'http://127.0.0.1:8000';
@@ -36,29 +37,37 @@ test('real DynamoDB Local: lifecycle, transactions, retries, moderation, recover
   const bob=ok(await call('POST','/join',{nickname:'bob'}),201);
   const banned=ok(await call('POST','/join',{nickname:'blocked'}),201);
   const owned=(pid:string)=>({'x-player-id':pid});
+  const cell=(i:number)=>{const {x,y,c}=LOGO_CELLS[i]!;return {x,y,c};};
   await t.test('pixel cooldown is atomic under concurrency and invalid writes cannot consume it',async()=>{
     await phase('pixel',5000);
     assert.equal((await call('POST','/pixel',{pid:alice.pid,x:99,y:0,c:0})).status,400);
-    const results=await Promise.all([0,1].map(x=>retry(()=>call('POST','/pixel',{pid:alice.pid,x,y:0,c:3}))));
+    assert.equal((await call('POST','/pixel',{pid:alice.pid,x:0,y:0})).status,400);
+    assert.equal((await call('POST','/pixel',{pid:alice.pid,...cell(0),c:(cell(0).c+1)%8})).status,400);
+    const results=await Promise.all([0,1].map(i=>retry(()=>call('POST','/pixel',{pid:alice.pid,...cell(i)}))));
     assert.equal(results.filter(r=>r.status===200).length,1);assert.equal(results.filter(r=>r.status===429).length,1);
     const item=ok(await call('GET',`/player/${alice.pid}`,undefined,false,{},owned(alice.pid)));assert.equal(item.pixelsPlaced,1);
     assert.equal((await call('GET',`/player/${alice.pid}`)).status,401);
     const canvas=ok(await call('GET','/canvas'));assert.equal(canvas.pixels.length,1);assert.ok(!JSON.stringify(canvas).includes(alice.pid));
     const stats=ok(await call('GET','/stats',undefined,true));assert.equal(stats.pixelsPlaced,1);
     ok(await call('POST','/admin/ban',{pid:banned.pid},true));
-    assert.equal((await call('POST','/pixel',{pid:banned.pid,x:2,y:0,c:1})).status,403);
+    assert.equal((await call('POST','/pixel',{pid:banned.pid,...cell(2)})).status,403);
+    // First writer wins: a lit cell rejects a second writer without consuming its cooldown.
+    const lit=canvas.pixels[0], taken=await call('POST','/pixel',{pid:bob.pid,x:lit.x,y:lit.y});
+    assert.equal(taken.status,409);assert.equal(taken.data.error,'PIXEL_TAKEN');
+    ok(await call('POST','/pixel',{pid:bob.pid,...cell(5)}));
+    assert.equal(ok(await call('GET','/stats',undefined,true)).pixelConflicts,1);
     assert.equal((await call('POST','/admin/clear',{x1:0,y1:0,x2:1,y2:0},true)).status,409);
   });
   await t.test('delta fallback, hidden canvas, moderation tombstones and automatic phase expiry',async()=>{
-    now+=3100;ok(await call('POST','/pixel',{pid:alice.pid,x:3,y:0,c:2}));
+    now+=3100;ok(await call('POST','/pixel',{pid:alice.pid,...cell(3)}));
     const delta=ok(await call('GET','/canvas/changes',undefined,false,{since:String(now-100),revision:'0'}));assert.equal(delta.full,false);assert.ok(delta.pixels.length>=1);
     assert.equal(ok(await call('GET','/canvas/changes',undefined,false,{since:'0',revision:'0'})).full,true);
     ok(await call('POST','/admin/hide',{hidden:true},true));assert.equal(ok(await call('GET','/canvas')).pixels.length,0);
-    assert.equal(ok(await call('GET','/canvas',undefined,true)).pixels.length,2);
+    assert.equal(ok(await call('GET','/canvas',undefined,true)).pixels.length,3);
     ok(await call('POST','/admin/hide',{hidden:false},true));
     now+=2000;assert.equal(ok(await call('GET','/meta')).phase,'pixel_frozen');
-    assert.equal((await call('POST','/pixel',{pid:alice.pid,x:4,y:0,c:2})).status,409);
-    ok(await call('POST','/admin/clear',{x1:0,y1:0,x2:5,y2:1},true));
+    assert.equal((await call('POST','/pixel',{pid:alice.pid,...cell(4)})).status,409);
+    ok(await call('POST','/admin/clear',{x1:0,y1:0,x2:31,y2:17},true));
     const snapshot=ok(await call('GET','/canvas/changes',undefined,false,{since:String(now),revision:'0'}));assert.equal(snapshot.full,true);assert.ok(snapshot.pixels.every((p:any)=>p.deleted));
     const inspection=ok(await call('GET','/canvas',undefined,true,{}, {'x-inspect':'1'}));assert.ok(inspection._inspect.operations.length>=2);
     assert.equal(ok(await call('GET','/canvas',undefined,false,{}, {'x-inspect':'1'}))._inspect,undefined);

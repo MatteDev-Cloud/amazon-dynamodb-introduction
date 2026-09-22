@@ -11,8 +11,8 @@ test('nickname validation normalizes Unicode and rejects markup, profanity and o
 });
 test('config bounds, phases and credential comparisons',()=>{
   assert.throws(()=>integer(NaN,0,10,'n'));assert.throws(()=>integer(1.5,0,10,'n'));
-  const meta=makeMeta('prova',{},100000); assert.equal(meta.canvasW,48);assert.equal(meta.expiresAt,86500);
-  assert.throws(()=>makeMeta('prova',{canvasW:49},0));assert.equal(nextPhase('lobby','pixel'),'pixel');
+  const meta=makeMeta('prova',{},100000); assert.equal(meta.canvasW,32);assert.equal(meta.canvasH,18);assert.equal(meta.cooldownMs,500);assert.equal(meta.expiresAt,86500);
+  assert.throws(()=>makeMeta('prova',{canvasW:33},0));assert.equal(nextPhase('lobby','pixel'),'pixel');
   assert.throws(()=>nextPhase('lobby','hotkey_running'));assert.equal(secretMatches(undefined,'secret'),false);
   assert.equal(secretMatches('secret','secret'),true);assert.equal(secretMatches('wrong','secret'),false);
   assert.equal(teamFor('same'),teamFor('same'));

@@ -148,7 +148,11 @@
 
 ---
 
-## 6. Identità visiva — direzione "Dark tech" (A)
+## 6. Identità visiva
+
+> **Aggiornamento (restyle):** la direzione in uso è quella **editoriale chiara** (ex fallback B, rivista): carta `#F3EEE4`, inchiostro `#1A2238`, accento vermiglio `#D9531E` per la PK, blu `#4148C8` per SK e indici, squadre `#E0662A` / `#6C4AD6`; titoli Fraunces, testo IBM Plex Sans, dati JetBrains Mono, tutti locali. Il Pixel Wall è una matrice LED nera con la palette del logo (`LOGO_PALETTE` in `shared/logo.ts`). Animazioni: scene che entrano dalla direzione di viaggio, passi che si costruiscono, zoom dal pixel al suo item. Dettagli in `08_GUIDA_PRESENTAZIONE.md`. La tabella seguente è la proposta originale «Dark tech», non più usata.
+
+### Direzione originale "Dark tech" (A)
 
 | Token | Valore | Uso |
 |---|---|---|

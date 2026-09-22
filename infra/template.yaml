@@ -83,7 +83,7 @@ Resources:
       FunctionCode: |
         function handler(event) {
           var request = event.request;
-          if (['/', '/play', '/play/', '/stage', '/stage/'].indexOf(request.uri) >= 0) request.uri = '/index.html';
+          if (['/', '/play', '/play/', '/stage', '/stage/', '/regia', '/regia/'].indexOf(request.uri) >= 0) request.uri = '/index.html';
           return request;
         }
   Distribution:

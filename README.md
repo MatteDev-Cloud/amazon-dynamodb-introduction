@@ -45,7 +45,7 @@ Copy-Item frontend/.env.development.example frontend/.env.development
 npm --prefix frontend run dev
 ```
 
-Aprire `http://localhost:5173/stage?s=prova-01` e `http://localhost:5173/play?s=prova-01`. Dettagli su variabili d'ambiente (locale/DEV/LIVE separate), build e deploy nella [guida di presentazione](docs/08_GUIDA_PRESENTAZIONE.md).
+Aprire `http://localhost:5173/stage?s=prova-01` sulla LIM (premere R per aprire la regia in popup, da spostare sul secondo schermo) e `http://localhost:5173/play?s=prova-01` sul telefono. Dettagli su variabili d'ambiente (locale/DEV/LIVE separate), build e deploy nella [guida di presentazione](docs/08_GUIDA_PRESENTAZIONE.md).
 
 ## Infrastruttura e deploy
 

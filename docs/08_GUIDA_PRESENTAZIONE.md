@@ -2,9 +2,9 @@
 
 ## Consegna
 
-SPA Vite + TypeScript vanilla con `/play` e `/stage`; API sul contratto v1 e tipi importati da `shared/types.ts`. Sono inclusi giochi, regia, QR generati nel browser, X-Ray, tassametro, mock esplicito, fallback statico, font locali con licenze, diagrammi SVG, copione e approfondimento Markdown/PDF.
+SPA Vite + Svelte 5 (TypeScript) con tre viste: `/stage` per la LIM, `/regia` per il secondo schermo del presentatore, `/play` per i telefoni; API sul contratto v1 e tipi importati da `shared/types.ts`. Sono inclusi giochi, regia, QR generati nel browser, X-Ray, tassametro, mock esplicito, fallback statico, font locali con licenze, diagrammi SVG, copione e approfondimento Markdown/PDF.
 
-File comuni, backend, bot, infrastruttura e documenti originali non sono stati modificati. Le dipendenze aggiunte sono esclusivamente in `frontend/`: Vite/TypeScript per la build e qrcode per il QR. Nessuna installazione globale, nessun DynamoDB/Java/Docker installato o avviato su questa macchina. Per verifiche browser e PDF sono stati usati Chrome e strumenti già presenti. La cartella node_modules non va trasferita: usare il lockfile sulla macchina di destinazione.
+File comuni, backend, bot, infrastruttura e documenti originali non sono stati modificati. Le dipendenze sono esclusivamente in `frontend/`: Vite/TypeScript/Svelte per la build, GSAP per le animazioni, qrcode per il QR, il font Fraunces via `@fontsource-variable` (impacchettato nella build, nessun CDN). Nessuna installazione globale, nessun DynamoDB/Java/Docker installato o avviato su questa macchina. Per verifiche browser e PDF sono stati usati Chrome e strumenti già presenti. La cartella node_modules non va trasferita: usare il lockfile sulla macchina di destinazione.
 
 ## Avvio sulla macchina di destinazione
 
@@ -67,76 +67,92 @@ La build produce `frontend/dist`, pronta per l'hosting già definito dall'agente
 
 La build include il mock in un chunk separato, caricato soltanto con `mode=mock`. La SPA richiede un browser moderno con supporto a ES2022; validare in particolare i telefoni meno recenti prima della presentazione.
 
+## Direzione visiva
+
+Direzione «editoriale chiara»: fondo carta `#F3EEE4`, inchiostro blu notte `#1A2238`, accento vermiglio `#D9531E` (PK), blu `#4148C8` (SK e indici), squadre arancione `#E0662A` e viola `#6C4AD6`. Titoli in Fraunces (serif, corsivo per le parole chiave), testo in IBM Plex Sans, dati in JetBrains Mono. L'unico oggetto nero è il Pixel Wall, una matrice di pallini LED. Tutti i colori sono variabili CSS in `frontend/src/styles/app.css`.
+
+La LIM è una scena fissa 1920×1080 scalata a tutto schermo (bande laterali su proiettori 4:3 o 16:10): impaginazione identica su qualsiasi schermo. Ogni scena entra dalla direzione di viaggio e si costruisce a passi (il telecomando fa avanzare prima i passi, poi la scena). Sulla LIM non compaiono pulsanti di comando: solo la barra di avanzamento e il tassametro.
+
+## Tre viste e il pannello di regia
+
+- **LIM** `/stage?s=SID`: il contenuto per il pubblico. Senza chiave admin mostra un riquadro «Collega il pannello di regia»; premere **R** per aprire la regia in una finestra popup, da trascinare sul secondo schermo.
+- **Regia** `/regia?s=SID` (stessi parametri): chiave admin, Avanti/Indietro, elenco scene (salto solo visuale), note per chi parla, Pixel Wall con mini-tela e sagoma del logo (visibile solo qui), sciame «Completa il logo», moderazione, «Avvia 3 · 2 · 1», strumenti (X-Ray, tassametro, bot runner, video, ricarica LIM, crea sessione, locale), registro errori. La regia comunica con la LIM via BroadcastChannel: stesso browser, stesso profilo, stessa origine. La chiave inserita in regia arriva alla LIM e resta in sessionStorage.
+- **Telefono** `/play?s=SID`.
+
+I tasti freccia e il telecomando funzionano sia sulla LIM sia sulla regia (quella con il focus). Un «avanti» premuto mentre la LIM attende l'API resta in coda e viene eseguito subito dopo; non fa però mai partire da solo il round HOT KEY.
+
 ## Tre modalità distinte
 
-- **API reali**: modalità predefinita. Nessuna sostituzione automatica dei dati in caso di rete assente. Lo stato di connessione e gli errori restano visibili.
-- **Mock**: `/stage?mode=mock&s=prova-ui` e `/play?mode=mock&s=prova-ui`, nella stessa origine e nello stesso profilo browser. Il database dimostrativo usa localStorage; non sincronizza dispositivi diversi. La dicitura DEMO/SIMULATO resta visibile. Nuova prova = nuovo sid. Non simula integralmente conflitti, throttling e latenze del servizio; l'X-Ray non inventa capacità misurate. Il comando bot modifica il flag, ma non esiste un runner mock.
-- **Statico**: `/stage?mode=static`. Undici scene senza chiamate API, con dati esemplificativi dichiarati, tela congelata, JSON, podio e costo dimostrativo. Frecce e salti navigano senza cambiare una sessione. Il QR della lobby rimane un link alla destinazione configurata: non abilita una partita offline sui telefoni.
+- **API reali**: modalità predefinita. Nessuna sostituzione automatica dei dati in caso di rete assente. Lo stato di connessione compare in alto a destra sulla LIM; gli errori vanno nel registro della regia (sulla LIM compaiono solo se la regia non è collegata).
+- **Mock**: `/stage?mode=mock&s=prova-ui`, `/regia?mode=mock&s=prova-ui` e `/play?mode=mock&s=prova-ui`, nella stessa origine e nello stesso profilo browser. Il database dimostrativo usa localStorage: non sincronizza dispositivi diversi e ospita un solo telefono per profilo. Simula logo, conflitti `PIXEL_TAKEN` e sciame; non simula throttling e latenze del servizio; l'X-Ray non inventa capacità misurate. La dicitura DEMO resta visibile.
+- **Statico**: `/stage?mode=static`. Dieci scene senza chiamate API, con dati esemplificativi dichiarati (logo completo, item, tabella, squadre, podio, scontrino). Il QR della lobby resta un link alla destinazione configurata.
 
 Nessuna modalità riproduce uno storico dei pixel: ByTime contiene gli ultimi stati, non una cronologia.
 
 ## Sequenza e scorciatoie
 
-| Posizione | Scena | Effetto in avanti |
-| --- | --- | --- |
-| 1 | Tirate fuori il telefono | Lobby |
-| 2 | PIXEL WALL | Avvia pixel, 90 secondi di default |
-| 3 | Natale 2004 | Congela pixel se ancora attivo |
-| 4 | Questo sei tu | Rimane pixel_frozen |
-| 5 | La chiave decide dove vivi | Talk e rivelazione squadre |
-| 6 | Prima le domande | Rimane talk |
-| 7 | Zero server (nostri) | hotkey_ready |
-| 8 | HOT KEY | Attende il pulsante 3-2-1, poi avvia round |
-| 9 | Cosa è appena successo | hotkey_end |
-| 10 | Non è più semplice | Rimane hotkey_end |
-| 11 | Il ricordo | end, solo dopo grace finale |
+| # | Scena | Passi | Effetto in avanti |
+| --- | --- | --- | --- |
+| 1 | Tirate fuori il telefono | QR e nomi | lobby |
+| 2 | Accendete il logo (Pixel Wall) | tela live → zoom su un pixel → chi l'ha acceso → una tabella | pixel (90 s); dal 2° passo pixel_frozen |
+| 3 | Natale 2004 | traffico → crollo → linea del tempo | rimane pixel_frozen |
+| 4 | La chiave decide dove vivi | hash nei cassetti → sort key → squadre | talk al 3° passo: squadre rivelate insieme ai telefoni |
+| 5 | Prima le domande | due mondi → access pattern/GSI → Query contro Scan | rimane talk |
+| 6 | Zero server (nostri) | richieste reali che scorrono | hotkey_ready |
+| 7 | HOT KEY | regole → 3·2·1 → round → podio | il round parte solo con Invio o «Avvia 3 · 2 · 1» |
+| 8 | Cosa è appena successo | scontrino → ×1.000 → ×1.000.000 | hotkey_end |
+| 9 | Non è più semplice | sì → no | rimane hotkey_end |
+| 10 | Il ricordo | TTL e QR | end, solo dopo la grace finale |
 
-Le fasi sono monotone. Indietro non modifica META; i tasti 1-8 saltano alle slide numerate soltanto visivamente. Non usare i salti per preparare un round: per le transizioni seguire la sequenza, oppure tornare alla scena corrispondente alla fase corrente e avanzare. Una richiesta rifiutata non fa avanzare il deck. Dopo 409 il client rilegge META; controllare lo stato e ripetere il comando appropriato.
+«Questo sei tu» non è più una slide separata: si raggiunge toccando un pixel sulla LIM (la tela si ingrandisce sul pallino e mostra il suo item con PK/SK spiegate), poi toccando l'autore (compare l'item del giocatore accanto a quello del pixel), poi la tabella con tutte le entità. Con il telecomando gli stessi passi arrivano con Avanti: la LIM sceglie un pixel acceso da una persona (non da un bot). Toccare un pixel durante il gioco non congela la tela; Esc o «Torna alla tela» tornano indietro.
 
-| Tasto | Azione |
+Le fasi sono monotone. Indietro e i salti non modificano META. Una richiesta rifiutata non fa avanzare il deck; dopo 409 il client rilegge META e l'errore compare nella regia.
+
+| Tasto (sulla LIM) | Azione |
 | --- | --- |
-| Frecce | Scena precedente/successiva |
-| 1-8 | Slide numerata, salto solo visuale |
+| → · PagGiù · Spazio | Passo o scena successiva |
+| ← · PagSu | Passo o scena precedente (solo visuale) |
+| Invio | Avvia 3·2·1 nella scena HOT KEY |
+| Esc | Chiude lo zoom sul pixel |
+| 1-9, 0 | Salto visuale alla scena 1-10 |
+| R | Apre la regia in popup |
 | I | X-Ray |
-| M | Tassametro espanso/compatto |
+| M | Mostra/nasconde il tassametro |
 | F | Congela Pixel Wall |
 | H | Nasconde/mostra la tela |
-| Shift+C | Cancella rettangolo selezionato |
-| B | Abilita/disabilita flag bot |
-| L | Cambia API e sid alla configurazione locale |
-| P | Apre video backup |
+| P | Video di backup |
 
-Le scorciatoie sono sospese mentre si scrive in un campo o un dialogo è aperto. Il pulsante Tema cambia tra Dark tech e carta, con IBM Plex locale. Il mock e lo statico non devono essere presentati come live.
+## Pixel Wall
 
-## Pixel, moderazione e dati reali
+La tela (32×18) parte tutta nera e nasconde la reinterpretazione pixel-art dell'icona DynamoDB: 252 celle. Sul telefono c'è un solo grande pulsante «Accendi un pixel» (si può tenere premuto): il telefono sceglie a caso una cella ancora spenta del logo e la scrive. Il cooldown è di 500 ms. Dopo ogni scrittura il telefono mostra la SK scritta (es. `PX#012#005`) e cerchia di bianco i propri pixel sulla mini-tela. Se qualcuno ha acceso la stessa cella un istante prima, il server risponde 409 `PIXEL_TAKEN` e il telefono prova subito un'altra cella: il cooldown non viene consumato.
 
-Sul telefono: tap su cella, scelta colore, anteprima semitrasparente; cooldown sia visivo sia applicato dal backend. Pinch per zoom, trascinamento per pan, «Centra tela» per ripristinare. La scrittura fallita rimuove l'anteprima. Lo snapshot periodico ripara i delta mancanti.
+Sulla LIM i pallini compaiono con un'animazione nell'ordine temporale delle scritture; accanto: pixel accesi su 252, scritture al secondo con grafico, conflitti gestiti (dal contatore STATS), giocatori. I conflitti dello sciame compaiono anche come anelli rossi sulla cella contesa. A logo completo il titolo diventa «Logo completato.» e la tela fa un riflesso.
 
-Sul palco: hover per autore/orario, clic per JSON. Nella slide «Questo sei tu» scegliere un giocatore dal menu e un pixel dalla tela. Gli item provengono dagli endpoint admin; i pid non compaiono nella classifica pubblica.
+**Completa il logo (sciame).** I partecipanti reali non bastano a finire: verso la fine, in regia, «Completa il logo». La regia fa entrare N giocatori virtuali (`bot.01`…, regolabili 4–40, predefinito 16) che scrivono in parallelo le celle mancanti attraverso la stessa API dei telefoni; scegliendo a caso, a fine corsa si contendono le stesse celle e i conflitti diventano visibili. Serve la fase `pixel` (la tela non deve essere già congelata). Con DynamoDB Local le transazioni sono lente (circa 8 scritture/s con 16 scrittori su questa macchina); su AWS la latenza è molto più bassa. Da provare in DEV prima del talk per scegliere il numero di scrittori.
 
-Per contenuti inappropriati: H immediato, F se la tela è attiva. Clic sul primo angolo, Shift+clic sull'ultimo, poi Shift+C. Il backend richiede la tela congelata; la selezione è evidenziata in rosso. Il dialogo del pixel offre «Escludi autore». Dopo la cancellazione controllare lo snapshot, poi H per mostrare. Un ban impedisce nuove scritture; i totali storici non vengono sottratti automaticamente.
+Moderazione dalla regia: «Nascondi tela» subito, «Congela ora» se la tela è attiva; sulla mini-tela clic sul primo angolo e Shift+clic sull'ultimo, poi «Cancella rettangolo» (richiede tela congelata). «Escludi autore» banna l'autore del pixel selezionato. Le celle cancellate tornano accendibili. Un ban impedisce nuove scritture; i totali storici non vengono sottratti.
 
 ## HOT KEY e riconnessione
 
 Il timer usa serverTime compensato sul punto medio della richiesta. I tap vengono accodati fino a dodici per batch. Un solo batch viaggia per volta; roundId, seq e delta sono persistiti prima dell'invio. Dopo reload un batch con risposta persa viene ritentato invariato, anche se PLAYER ha già il suo punteggio.
 
-429 rispetta retryInMs; rete/503 usano backoff. Errori permanenti interrompono i retry. Allo zero il bottone si blocca e i batch possono essere scaricati entro la grace del backend. Una connessione persa oltre questa finestra può perdere tap non confermati. Il punteggio mostrato distingue confermati e in coda; il risultato ufficiale è quello di rank/leaderboard. Non promettere recupero illimitato.
+429 rispetta retryInMs; rete/503 usano backoff. Errori permanenti interrompono i retry. Allo zero il bottone si blocca e i batch possono essere scaricati entro la grace del backend. Il punteggio mostrato distingue confermati e in coda; il risultato ufficiale è quello di rank/leaderboard.
 
-Il GSI può ritardare durante il round. Il podio resta provvisorio fino alla fine della grace; non annunciare vincitori prima del consolidamento. La classifica anima i cambi di posizione: nickname identici nella stessa squadra non permettono identità visuali certe senza un identificativo pubblico aggiuntivo, quindi i dati restano corretti ma l'animazione può essere ambigua.
+Sulla LIM: barra tiro alla fune arancione/viola, classifica con animazione dei sorpassi, e l'item `STATS` («l'item più conteso della sala») che si scalda in proporzione ai tap al secondo. Il podio resta provvisorio fino alla fine della grace.
 
 ## X-Ray e costi
 
-Il pannello mostra operazioni, parametri strutturali, capacità, estratto della risposta e tempo DB rispetto al totale. Il residuo non è una misura isolata della rete. Il feed indica esplicitamente che è ricostruito dalle letture, sia per pixel sia per punteggi.
+Il pannello (I, o regia) scorre da destra: ultima richiesta dello stage, operazioni DynamoDB con espressioni, unità consumate per tabella e GSI, tempo DB rispetto al totale. Non è il servizio AWS X-Ray.
 
-Il costo è espresso in USD e arriva da estimatedCost, con prezzi del backend. Null significa «Non verificato». Il conteggio delle unità distingue tabella e GSI. La telemetria economica è approssimata; storage, hosting, log e altri costi esclusi sono dichiarati. In Local/DEV il valore è una proiezione equivalente a listino on-demand, non una fattura. I moltiplicatori sono soltanto grafici.
+Il costo è espresso in USD e arriva da estimatedCost, con prezzi del backend. Null significa «n/d». Lo scontrino distingue scritture su tabella e su GSI; storage, hosting, log e altri costi esclusi sono dichiarati. In Local/DEV il valore è una proiezione a listino on-demand, non una fattura. I moltiplicatori sono soltanto grafici.
 
-## Bot, locale e backup
+## Bot runner, locale e backup
 
-Avviare `npm run bot:runner -- --sid SID --n 20` sulla macchina che esegue il runner, con l'API corretta. Abilitare B in lobby/pixel, prima della chiusura del join. Il tasto B non lancia processi nella Lambda. I nomi bot rimangono riconoscibili.
+Il runner esterno resta disponibile: `npm run bot:runner -- --sid SID --n 20`, poi «Bot runner» in regia in lobby/pixel. I bot del runner ora accendono le celle del logo. Lo sciame della regia non richiede il runner.
 
-Prima della prova preparare VITE_LOCAL_API e VITE_LOCAL_SESSION e creare la sessione locale. L ricarica lo stage su quell'ambiente; credenziali e giocatori della sessione cloud non vengono trasferiti. Reimmettere la chiave locale in Regia.
+Prima della prova preparare VITE_LOCAL_API e VITE_LOCAL_SESSION e creare la sessione locale. «Passa al locale» in regia ricarica la regia su quell'ambiente: aprire la LIM con gli stessi parametri. Credenziali e giocatori della sessione cloud non vengono trasferiti.
 
-P apre `public/backup.mp4` o VITE_BACKUP_URL. Il video completo non è stato registrato: richiede una prova integrata. Se manca, il dialogo lo segnala e resta disponibile il fallback statico. Dopo la registrazione copiare il file nella cartella pubblica e rifare la build. Provare la riproduzione offline prima del talk.
+«Video di backup» (regia) o P (LIM) apre `public/backup.mp4` o VITE_BACKUP_URL. Il video non è stato registrato: richiede una prova integrata.
 
 ## Materiali
 
@@ -150,7 +166,7 @@ Il PDF di ricerca iniziale non era nel checkout; il testo è una stesura autonom
 
 ## Verifiche e prove ancora necessarie
 
-Eseguite su questa macchina: typecheck/build frontend; cinque test su delta/tombstone, batch persistiti, ack perso, serializzazione, 429/grace e 403; percorso browser mock da join a end, reload durante HOT KEY, moderazione hide/freeze, proiezioni e navigazione delle undici scene statiche. Chrome già installato, viewport desktop 1440×1000 e telefono 390×844. Verificato anche il client HTTP con fixture: 429, recupero rete, giocatore assente dopo reload e separazione header proprietario/admin. PDF renderizzato e controllato, dieci pagine senza pagine orfane.
+Eseguite su questa macchina (restyle Svelte): svelte-check senza errori né warning; build; test unitari frontend; `tests/network.mjs` (fetch reale su fixture: `PIXEL_TAKEN` con nuovo tentativo su un'altra cella, 429, recupero rete, giocatore assente dopo reload, header proprietario/admin); `tests/browser.mjs` in mock (join/reload, pixel dal telefono, sciame che completa il logo, zoom pixel → item → giocatore → tabella, rivelazione squadre, HOT KEY con reload e podio, costi, fine, giro statico). Percorso completo anche contro il backend locale su DynamoDB Local con LIM 1920×1080, regia e quattro telefoni 390×844: sciame con conflitti reali, HOT KEY end-to-end. Backend: test unitari e di integrazione su DynamoDB Local, incluso «vince il primo».
 
 Test browser riproducibili, se Playwright e Chrome sono già disponibili:
 

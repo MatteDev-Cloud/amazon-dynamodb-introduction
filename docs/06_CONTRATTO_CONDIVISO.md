@@ -17,7 +17,7 @@ Il pid è una credenziale bearer: join, il proprietario e lo stage autenticato l
 | GET `/canvas` | — | `CanvasResponse`, snapshot completo, lettura forte |
 | GET `/canvas/changes` | `since=<cursor>&revision=<canvasRevision>` | `CanvasResponse` |
 | GET `/pixel/{x}/{y}` | admin | item pixel grezzo |
-| POST `/pixel` | `{pid,x,y,c}` | `{ok:true,nextAllowedAt}` |
+| POST `/pixel` | `{pid,x,y,c?}` | `{ok:true,nextAllowedAt}`; solo celle del logo, 409 `PIXEL_TAKEN` se già accesa |
 | POST `/tap` | `{pid,delta,seq,roundId}` | `{score,acceptedSeq,duplicate}` |
 | GET `/leaderboard` | `limit=1..100`, default 10 | `{top:[{nickname,team,score,rank}],provisional,roundId}` |
 | GET `/rank/{pid}` | proprietario/admin | `{rank,total,score,provisional}` |
@@ -29,7 +29,7 @@ Il pid è una credenziale bearer: join, il proprietario e lo stage autenticato l
 | POST `/admin/reset` | configurazione SessionConfig opzionale | META iniziale; solo sid nuovo, 409 se esiste |
 | POST `/admin/bots` | `{enabled:boolean}` | META aggiornato |
 
-Errori principali: 400 input, 401 admin/proprietario non autorizzato, 403 bannato, 404 sessione/item assente o scaduto, 409 fase/versione/sequenza non valida, 429 cooldown/rate limit, 503 conflitto transitorio o backend non disponibile. Per 429 usare retryInMs; per 503 backoff con jitter. Non riprovare automaticamente input 400/403.
+Errori principali: 400 input (anche `NOT_IN_LOGO`, `WRONG_COLOR`), 401 admin/proprietario non autorizzato, 403 bannato, 404 sessione/item assente o scaduto, 409 fase/versione/sequenza non valida o cella già accesa (`PIXEL_TAKEN`), 429 cooldown/rate limit, 503 conflitto transitorio o backend non disponibile. Per 429 usare retryInMs; per 503 backoff con jitter. Non riprovare automaticamente input 400/403.
 
 ## Regia, timer e reload
 
@@ -37,13 +37,15 @@ Transizioni sequenziali: lobby → pixel → pixel_frozen → talk → hotkey_re
 
 Pixel e HOT KEY scadono secondo il tempo server, anche senza stage connesso; la prima richiesta successiva materializza pixel_frozen/hotkey_end. Non è un timer in background. Passare a hotkey_end prima del termine tronca il round; end è ammesso solo dopo la finestra finale di tap. `teamsRevealed` diventa true entrando in talk. Il telefono non mostra team prima di allora, pur avendolo ricevuto al join.
 
-Default: 48×27, cooldown 1500 ms, pixel 90000 ms, round 15000 ms, grace tap 2000 ms. Prompt provvisorio configurabile: «Scrivete DDB». Nickname non univoci. Una sola partita HOT KEY per sid. Date in ms, TTL in secondi. La scadenza sessione è fissata alla creazione a +24h (non ricalcolata alla fine per evitare un aggiornamento non atomico di tutti gli item); l'app filtra subito gli scaduti, AWS li elimina asincronamente.
+Default: 32×18 (le dimensioni del logo, anche massime), cooldown 500 ms, pixel 90000 ms, round 15000 ms, grace tap 2000 ms. Prompt configurabile: «Accendete il logo». Nickname non univoci. Una sola partita HOT KEY per sid. Date in ms, TTL in secondi. La scadenza sessione è fissata alla creazione a +24h (non ricalcolata alla fine per evitare un aggiornamento non atomico di tutti gli item); l'app filtra subito gli scaduti, AWS li elimina asincronamente.
 
 Persistenza telefono: chiave localStorage per sid contenente pid; al reload GET player con x-player-id e GET meta. 404: eliminare il pid salvato e proporre join se ancora aperto. Compensare l'orologio dal punto medio richiesta/risposta e serverTime.
 
 ## Pixel e recupero tela
 
-Cooldown e pixel vengono scritti in una transazione insieme al conteggio STATS e a un controllo META: niente cooldown consumato se il pixel fallisce. Questa scelta promuove la transazione da L2 per evitare errori parziali. Timestamp per cella monotono tramite condizione: un aggiornamento vecchio non può sovrascriverne uno più recente.
+La tela nasce nera e nasconde un'immagine: una reinterpretazione pixel-art dell'icona DynamoDB definita in `shared/logo.ts` (252 celle su 32×18, palette di 8 colori `LOGO_PALETTE`, esportata anche come `PALETTE`). Il colore di una cella è deciso dall'immagine: `c` è facoltativo e, se presente, deve coincidere (400 `WRONG_COLOR`); una cella fuori dal logo restituisce 400 `NOT_IN_LOGO`. Il telefono sceglie a caso una cella ancora spenta e la accende; PK/SK riflettono la posizione (`CANVAS#{sid}` / `PX#xxx#yyy`).
+
+Vince il primo: il Put della cella ha condizione `attribute_not_exists(PK) OR deleted = true`. Se due scrittori accendono la stessa cella, il secondo riceve 409 `PIXEL_TAKEN`, nessun lock. Cooldown e pixel vengono scritti in una transazione insieme al conteggio STATS e a un controllo META: se la cella è già presa la transazione si annulla e il cooldown non viene consumato, quindi il client può ritentare subito un'altra cella. Ogni rifiuto incrementa `STATS.pixelConflicts` (campo facoltativo: sessioni create prima non lo hanno). Una cella cancellata dalla moderazione (tombstone) può essere riaccesa.
 
 Conservare `cursor` restituito dal server, non l'ora del telefono. L'indice ByTime legge con overlap 2s; applicare un pixel solo se t è maggiore di quello già noto. `deleted:true` è una tombstone: rimuovere il colore e conservare t. I clear incrementano canvasRevision. Revision diversa, cursore troppo vecchio (>30s) o futuro producono uno snapshot `full:true`. Richiedere comunque `/canvas` ogni 15s e a ogni riconnessione: un GSI non garantisce un limite massimo di ritardo. Uno snapshot sostituisce l'intera tela. Evitare richieste canvas sovrapposte per non applicare snapshot fuori ordine. Quando hidden=true, svuotare la visualizzazione; le letture pubbliche restituiscono zero pixel, l'admin può ancora leggere per moderare.
 
@@ -62,6 +64,8 @@ Update PLAYER e incremento STATS (squadra, taps) avvengono nella stessa transazi
 Solo la telemetria economica usa buffer per container con flush atteso nelle richieste dopo 2s; può perdere la coda se un container sparisce. STATS marca estimated=true; non è una fattura. Join/pixel/tap sono invece conteggi persistenti transazionali. Il costo include capacità misurata, richieste HTTP API/Lambda e durata osservata a 256MB; esclude storage, hosting, trasferimenti, log, crediti e imposte. Prezzi in USD in shared/pricing.ts, verificati per Francoforte il 21 settembre 2026; fonti e SKU in shared/pricing-sources.json. Null significa dato non verificato e vieta di mostrare un totale come verificato. costBasis è sempre on-demand-list-price: su DEV provisioned o Local mostra una proiezione equivalente. consumed.read/write separano le unità lette e scritte, anche nelle transazioni.
 
 `/admin/bots` salva solo botsEnabled. Un runner Node esterno, avviato esplicitamente sul portatile, fa polling e usa la stessa API pubblica dei telefoni. La Lambda non avvia processi persistenti. Il tasto B funziona se questo runner è attivo; L cambia base URL e sid, non migra lo stato cloud. I bot devono essere riconoscibili come simulati (prefisso bot nei nickname).
+
+Lo **sciame** della regia («Completa il logo») è l'alternativa senza processi esterni: il pannello di regia, nel browser del presentatore, fa entrare N giocatori virtuali (`bot.01`, `bot.02`, …) con `/join` e accende in parallelo le celle mancanti con `/pixel`, come qualsiasi telefono e senza chiave admin. Gli scrittori scelgono le celle a caso senza coordinarsi, quindi verso la fine si contendono le stesse celle: i 409 `PIXEL_TAKEN` sono la dimostrazione visibile della scrittura condizionale. 429 rispetta `retryInMs`, 503 e rete usano backoff con jitter. Funziona solo in fase `pixel` (l'ingresso chiude dopo).
 
 ## Correzioni didattiche da recepire dall'agente B
 
