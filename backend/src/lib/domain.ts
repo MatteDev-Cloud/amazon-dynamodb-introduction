@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { PHASES, type Meta, type Phase, type SessionConfig, type Team } from '../../../shared/types.js';
+import { LOGO_H, LOGO_W } from '../../../shared/logo.js';
 export class HttpError extends Error {
   constructor(public status: number, public code: string, message: string, public retryInMs?: number) { super(message); }
 }
@@ -28,11 +29,11 @@ export function makeMeta(sid: string, input: SessionConfig, now: number): Meta {
   const config = (name: keyof SessionConfig, fallback: number, min: number, max: number) => integer(input[name] ?? fallback, min, max, name);
   return {
     sid, phase: 'lobby', version: 1, phaseStartedAt: now, phaseEndsAt: null,
-    canvasW: config('canvasW',48,1,48), canvasH: config('canvasH',27,1,27),
-    cooldownMs: config('cooldownMs',1500,100,60000), roundMs: config('roundMs',15000,1000,60000), pixelMs: config('pixelMs',90000,1000,300000),
+    canvasW: config('canvasW',LOGO_W,1,LOGO_W), canvasH: config('canvasH',LOGO_H,1,LOGO_H),
+    cooldownMs: config('cooldownMs',500,100,60000), roundMs: config('roundMs',15000,1000,60000), pixelMs: config('pixelMs',90000,1000,300000),
     canvasHidden: false, canvasRevision: 0, teamsRevealed: false, roundId: null, roundStartedAt: null, roundEndsAt: null,
     tapGraceMs: 2000, expiresAt: Math.floor(now/1000)+86400,
-    prompt: input.prompt === undefined ? 'Scrivete DDB' : text(input.prompt, /^.{1,120}$/u, 'prompt'), botsEnabled: false,
+    prompt: input.prompt === undefined ? 'Accendete il logo' : text(input.prompt, /^.{1,120}$/u, 'prompt'), botsEnabled: false,
   };
 }
 export function nextPhase(current: Phase, target: unknown): Phase {

@@ -2,7 +2,8 @@
 export const PHASES = ['lobby', 'pixel', 'pixel_frozen', 'talk', 'hotkey_ready', 'hotkey_running', 'hotkey_end', 'end'] as const;
 export type Phase = typeof PHASES[number];
 export type Team = 'orange' | 'purple';
-export const PALETTE = ['#E8EAED', '#0B0D10', '#C6FF3D', '#FF8A3D', '#A78BFA', '#3DD6FF', '#FF4D6D', '#FFD93D'] as const;
+/** Pixel colors come from the target picture (see logo.ts). */
+export { LOGO_PALETTE as PALETTE } from './logo.js';
 export interface Meta {
   sid: string; phase: Phase; version: number; phaseStartedAt: number; phaseEndsAt: number | null;
   canvasW: number; canvasH: number; cooldownMs: number; roundMs: number; pixelMs: number;
@@ -32,7 +33,8 @@ export interface ApiError extends Envelope { error: string; message: string; ret
 export interface JoinRequest { nickname: string }
 export interface JoinResponse { pid: string; team: Team; nickname: string }
 export interface PlayersResponse { players: {pid: string; nickname: string; team: Team; joinedAt: number}[]; total: number }
-export interface PixelRequest { pid: string; x: number; y: number; c: number }
+/** c is optional: the server derives it from the picture and rejects a mismatch. */
+export interface PixelRequest { pid: string; x: number; y: number; c?: number }
 export interface PixelResponse { ok: true; nextAllowedAt: number }
 export interface TapRequest { pid: string; delta: number; seq: number; roundId: string }
 export interface TapResponse { score: number; acceptedSeq: number; duplicate: boolean }
@@ -46,7 +48,7 @@ export interface ClearRequest { x1: number; y1: number; x2: number; y2: number }
 export interface ClearResponse { deleted: number; canvasRevision: number }
 export interface StatsResponse extends Stats { prices: PriceConfig; estimatedCost: number | null; costBasis: 'on-demand-list-price' }
 export interface Stats {
-  playersJoined: number; pixelsPlaced: number; taps: number; teamOrange: number; teamPurple: number;
+  playersJoined: number; pixelsPlaced: number; pixelConflicts?: number; taps: number; teamOrange: number; teamPurple: number;
   apiCalls: number; wruTable: number; wruGsi: number; rruTable: number; rruGsi: number;
   lambdaMs: number; estimated: true; expiresAt: number;
 }

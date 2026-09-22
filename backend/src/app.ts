@@ -4,6 +4,7 @@ import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import type { Meta, Player, RawPixel, Stats, TapRequest } from '../../shared/types.js';
 import { PRICES, estimateCost } from '../../shared/pricing.js';
 import type { Configuration } from './lib/config.js';
+import { logoColor } from '../../shared/logo.js';
 import { HttpError, fail, integer, makeMeta, nextPhase, nickname, pidValue, pixelKey, secretMatches, sessionKey, sidValue, teamFor } from './lib/domain.js';
 import { Meter, newClient, RequestDb } from './lib/ddb.js';
 
@@ -76,7 +77,7 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
       if(req.method==='POST'&&path==='/admin/reset') {
         requireAdmin();
         const meta=makeMeta(sid,body,now);
-        const stats:Stats={playersJoined:0,pixelsPlaced:0,taps:0,teamOrange:0,teamPurple:0,apiCalls:0,wruTable:0,wruGsi:0,rruTable:0,rruGsi:0,lambdaMs:0,estimated:true,expiresAt:meta.expiresAt};
+        const stats:Stats={playersJoined:0,pixelsPlaced:0,pixelConflicts:0,taps:0,teamOrange:0,teamPurple:0,apiCalls:0,wruTable:0,wruGsi:0,rruTable:0,rruGsi:0,lambdaMs:0,estimated:true,expiresAt:meta.expiresAt};
         try { await transaction(db,[{Put:{TableName:table,Item:{...sessionKey(sid,'META'),...meta},ConditionExpression:'attribute_not_exists(PK)'}},{Put:{TableName:table,Item:{...sessionKey(sid,'STATS'),...stats},ConditionExpression:'attribute_not_exists(PK)'}}]); }
         catch(e) { if(conditional(e)) fail(409,'SESSION_EXISTS','Use a new sid; existing sessions are never overwritten'); throw e; }
         sessionExists=true; return finish(201,{...meta});
@@ -130,12 +131,22 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
       if(req.method==='GET'&&pixelPath) { requireAdmin(); const x=integer(Number(pixelPath[1]),0,meta.canvasW-1,'x'),y=integer(Number(pixelPath[2]),0,meta.canvasH-1,'y'); const item=await get(db,pixelKey(sid,x,y)); if(!item||item.deleted||item.expiresAt<=now/1000) fail(404,'PIXEL_NOT_FOUND','Pixel not found'); return finish(200,item); }
       if(req.method==='POST'&&path==='/pixel') {
         if(meta.phase!=='pixel'||meta.phaseEndsAt===null||now>=meta.phaseEndsAt) fail(409,'WRONG_PHASE','Canvas is frozen');
-        const pid=pidValue(body.pid), x=integer(body.x,0,meta.canvasW-1,'x'),y=integer(body.y,0,meta.canvasH-1,'y'),color=integer(body.c,0,7,'c');
+        const pid=pidValue(body.pid), x=integer(body.x,0,meta.canvasW-1,'x'),y=integer(body.y,0,meta.canvasH-1,'y');
+        // The picture decides the color: a cell outside the logo cannot be lit, a wrong color is rejected.
+        const color=logoColor(x,y);
+        if(color===null) fail(400,'NOT_IN_LOGO','Cell is not part of the picture');
+        if(body.c!==undefined&&integer(body.c,0,7,'c')!==color) fail(400,'WRONG_COLOR','Color must match the picture');
         const p=await player(db,sid,pid,now);
         if(p.lastPixelAt!==undefined && now-p.lastPixelAt<meta.cooldownMs) fail(429,'COOLDOWN','Wait before placing another pixel',meta.cooldownMs-(now-p.lastPixelAt));
         const pixel:RawPixel={...pixelKey(sid,x,y),x,y,color,by:p.nickname,byId:pid,cv:sid,updatedAt:now,expiresAt:meta.expiresAt};
-        try { await transaction(db,[checkMeta(meta,now),{Update:{TableName:table,Key:sessionKey(sid,`PLAYER#${pid}`),UpdateExpression:'SET lastPixelAt = :now ADD pixelsPlaced :one',ConditionExpression:'attribute_exists(PK) AND attribute_not_exists(banned) AND (attribute_not_exists(lastPixelAt) OR lastPixelAt <= :cut)',ExpressionAttributeValues:{':now':now,':one':1,':cut':now-meta.cooldownMs}}},{Put:{TableName:table,Item:pixel,ConditionExpression:'attribute_not_exists(updatedAt) OR updatedAt < :now',ExpressionAttributeValues:{':now':now}}},statAdd(sid,{pixelsPlaced:1})]); }
-        catch(e) { if(conditional(e)) { const latest=await player(db,sid,pid,now); if(latest.lastPixelAt!==undefined && now-latest.lastPixelAt<meta.cooldownMs) fail(429,'COOLDOWN','Wait before placing another pixel',meta.cooldownMs-(now-latest.lastPixelAt)); fail(409,'STATE_CHANGED','Canvas or phase changed; refresh before retry'); } throw e; }
+        try { await transaction(db,[checkMeta(meta,now),{Update:{TableName:table,Key:sessionKey(sid,`PLAYER#${pid}`),UpdateExpression:'SET lastPixelAt = :now ADD pixelsPlaced :one',ConditionExpression:'attribute_exists(PK) AND attribute_not_exists(banned) AND (attribute_not_exists(lastPixelAt) OR lastPixelAt <= :cut)',ExpressionAttributeValues:{':now':now,':one':1,':cut':now-meta.cooldownMs}}},{Put:{TableName:table,Item:pixel,ConditionExpression:'attribute_not_exists(PK) OR deleted = :yes',ExpressionAttributeValues:{':yes':true}}},statAdd(sid,{pixelsPlaced:1})]); }
+        catch(e) {
+          // First writer wins: the cell condition (item 2 of the transaction) failed, nothing else was written.
+          if((e as any)?.CancellationReasons?.[2]?.Code==='ConditionalCheckFailed') {
+            await db.run(new UpdateCommand(statAdd(sid,{pixelConflicts:1}).Update)).catch(()=>undefined);
+            fail(409,'PIXEL_TAKEN','Cell already lit by someone else');
+          }
+          if(conditional(e)) { const latest=await player(db,sid,pid,now); if(latest.lastPixelAt!==undefined && now-latest.lastPixelAt<meta.cooldownMs) fail(429,'COOLDOWN','Wait before placing another pixel',meta.cooldownMs-(now-latest.lastPixelAt)); fail(409,'STATE_CHANGED','Canvas or phase changed; refresh before retry'); } throw e; }
         return finish(200,{ok:true,nextAllowedAt:now+meta.cooldownMs});
       }
       if(req.method==='POST'&&path==='/admin/clear') {

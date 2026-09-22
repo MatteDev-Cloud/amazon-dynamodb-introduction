@@ -43,6 +43,8 @@ Il campo `META.version` si incrementa a ogni cambio: il telefono ridisegna la sc
 
 > "Avete una tela in comune. Toccate un quadratino e scegliete un colore. Dopo ogni pixel dovete aspettare 3 secondi. Avete 90 secondi: provate a disegnare insieme [prompt]."
 
+> **Aggiornamento (restyle):** la tela è 32×18, parte nera e nasconde il logo DynamoDB in pixel-art (252 celle, `shared/logo.ts`). Il telefono ha un solo pulsante «Accendi un pixel» che sceglie una cella spenta; il colore lo decide il logo; cooldown 500 ms; se due persone accendono la stessa cella **vince il primo** (scrittura condizionale, 409 `PIXEL_TAKEN`). Verso la fine lo sciame della regia completa il logo. Le regole originali qui sotto restano come storico.
+
 - **Tela:** 48×27 pixel (16:9, 1.296 celle).
 - **Palette:** 8 colori (vedi `02_` §Identità visiva).
 - **Cooldown:** 1,5 secondi per giocatore, **fatto rispettare dal database** (condition expression), non solo dal client.

@@ -1,5 +1,6 @@
 import { BotClient, ApiFailure, sleep } from './client.js';
 import type { JoinResponse, Meta } from '../shared/types.js';
+import { LOGO_CELLS } from '../shared/logo.js';
 export class BotGroup {
   private players:JoinResponse[]=[];
   private pixelAt=new Map<string,number>();
@@ -14,8 +15,9 @@ export class BotGroup {
     }
     if(meta.phase==='pixel' && this.mode!=='hotkey') {
       for(const p of this.players) if(Date.now()-(this.pixelAt.get(p.pid)??0)>=meta.cooldownMs) {
-        const position=this.counter++%(meta.canvasW*meta.canvasH), x=position%meta.canvasW,y=Math.floor(position/meta.canvasW);
-        try{await this.client.request('/pixel',{pid:p.pid,x,y,c:(Math.floor(x/4)+Math.floor(y/3))%8});this.pixelAt.set(p.pid,Date.now());}
+        // Walk the picture cells; PIXEL_TAKEN (409) just means someone else lit that cell first.
+        const {x,y,c}=LOGO_CELLS[this.counter++%LOGO_CELLS.length]!;
+        try{await this.client.request('/pixel',{pid:p.pid,x,y,c});this.pixelAt.set(p.pid,Date.now());}
         catch(e){if(!(e instanceof ApiFailure)||![409,429,503].includes(e.status))throw e;this.pixelAt.set(p.pid,Date.now());}
       }
     }

@@ -199,4 +199,9 @@ I due punti più rischiosi:
 - [x] ~~Nickname univoci sì/no~~ → confermato: **no**, restano non univoci (evita la complessità di una transazione dedicata al join)
 - [x] ~~Cooldown con `TransactWriteItems`~~ → già implementato: sì, cooldown e scrittura pixel condividono la stessa transazione (vedi `06_CONTRATTO_CONDIVISO.md`)
 - [x] ~~Tassametro in € o $~~ → già implementato: **USD**, prezzi verificati per Francoforte (vedi `shared/pricing.ts`)
+- [x] ~~Stile visivo~~ → abbandonato il «Dark tech» neon: direzione **editoriale chiara** (carta, inchiostro blu notte, accento vermiglio, Fraunces + IBM Plex + JetBrains Mono); il Pixel Wall resta l'unico oggetto nero. Frontend riscritto in **Svelte 5 + GSAP**
+- [x] ~~Pixel Wall~~ → tela **32×18** che parte nera e nasconde il **logo DynamoDB** in pixel-art; «tap = rivela» (colore deciso dal logo); cooldown **500 ms**; conflitti **first-writer-wins** con 409 `PIXEL_TAKEN` e contatore `pixelConflicts`; prompt «Accendete il logo»
+- [x] ~~Completamento della tela~~ → **sciame dal pannello di regia** («Completa il logo»): giocatori virtuali che scrivono in parallelo con la stessa API, per mostrare la concorrenza
+- [x] ~~Comandi sulla LIM~~ → spostati in una finestra **regia** separata (`/regia`, popup da secondo schermo, collegata via BroadcastChannel); sulla LIM nessun pulsante
+- [x] ~~Flusso delle slide~~ → scene a passi e navigazione per interazione: dal Pixel Wall si tocca un pixel per zoomare sul suo item, poi sull'autore («Questo sei tu»), poi sulla tabella. «Questo sei tu» viene prima di «Natale 2004»
 - [ ] Chi parla in quale scena (script, Fase 5) — bozza P1/P2 pronta in `docs/contenuti/SCRIPT_PARLATO.md`, resta da assegnare alle due persone reali

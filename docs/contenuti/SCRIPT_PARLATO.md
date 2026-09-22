@@ -14,37 +14,39 @@ Lasciare circa venti secondi al pubblico. P2 controlla la comparsa dei nickname.
 
 ## 01:00-02:30 · Scena A · P1, regia P2
 
-**Apertura:** «Scrivete DDB sulla tela. Toccate un quadratino, poi scegliete il colore. Tra un pixel e l'altro passa un secondo e mezzo. Avete novanta secondi.»
+**Apertura:** «La tela è nera. Dentro c'è un'immagine nascosta: accendetela. Premete il pulsante, o tenetelo premuto: ogni mezzo secondo accendete un pixel. Avete novanta secondi.»
 
-«Ogni cella salvata è una scrittura. Il telefono mostra subito un'anteprima, ma il server decide se accettarla. Due persone possono scegliere la stessa cella: il database conserva lo stato aggiornato, non due disegni separati.»
+«Ogni pallino che si accende è una scrittura nel database. Il telefono vi dice la chiave che ha scritto, per esempio PX#012#005: colonna 12, riga 5. Se due persone puntano la stessa cella, vince la prima: l'altra riceve un rifiuto e il telefono ne prova subito un'altra.»
 
-Lasciare giocare. Dopo circa trenta secondi: «Guardate il piccolo scontrino nell'angolo. Torneremo su quei numeri.» Non anticipare un costo specifico.
+Lasciare giocare. Dopo circa trenta secondi: «Guardate il contatore dei conflitti e lo scontrino nell'angolo. Torneremo su quei numeri.» Non anticipare un costo specifico.
 
-P2 osserva la tela. Se necessario H nasconde, F congela, poi selezione e Shift+C cancellano. I bot devono essere stati registrati in lobby; dichiarare «aggiungiamo partecipanti simulati» se vengono usati.
+**Completamento (P2, verso i 60 secondi):** «Siamo pochi per finire in tempo. Chiamiamo rinforzi.» Regia → «Completa il logo». «Adesso scrivono in parallelo decine di giocatori simulati, dichiaratamente bot. Guardate gli anelli rossi: sono scritture sulla stessa cella nello stesso momento. Il database non blocca nessuno: accetta la prima, rifiuta le altre con una condizione.»
 
-**Ponte, alla scadenza:** «Fermiamoci qui. Quello che avete costruito adesso è il nostro esempio.»
+P2 osserva la tela sulla regia. Se necessario «Nascondi tela», «Congela ora», poi selezione sulla mini-tela e «Cancella rettangolo».
 
-## 02:30-03:30 · Slide 2 · P2
+**Ponte, a logo completato:** «Questo logo è fatto di duecentocinquantadue item. Apriamone uno.»
+
+## 02:30-03:30 · Questo sei tu · P1
+
+**Apertura:** toccare un pixel sulla LIM (o Avanti: la LIM ne sceglie uno umano). La tela si ingrandisce sul pallino. «Un pixel è un item.»
+
+«La partition key, CANVAS più la sessione, tiene insieme tutti i pixel di questa tela. La sort key è la posizione: PX, colonna, riga. Già in ordine.»
+
+Toccare l'autore (o Avanti). «Questo sei tu.» «A sinistra la cella, a destra il giocatore che l'ha accesa: nome, pixel piazzati. La squadra c'è già, ma ve la sveliamo tra poco. Due entità diverse, stessa tabella, attributi diversi.»
+
+Avanti: la tabella. «Pixel, giocatori, stato e contatori convivono. La partition key raggruppa, la sort key ordina.» «Gli attributi possono essere diversi, ma le regole esistono: sono nel contratto dell'applicazione.»
+
+**Ponte:** «Perché qualcuno ha avuto bisogno di un database così?»
+
+## 03:30-04:30 · Natale 2004 · P2
 
 **Apertura:** «Immaginate la stessa esigenza durante il traffico delle feste: molti utenti, servizi diversi, dati che devono restare disponibili.»
 
-«Natale 2004 è la cornice narrativa di questa slide. La curva è illustrativa, non un grafico storico misurato. Il problema tecnico è reale: come far crescere i servizi senza trasformare ogni operazione sui dati in un collo di bottiglia?»
+«Natale 2004 è la cornice narrativa di questa slide. La curva è illustrativa, non un grafico storico misurato.» Avanti: la soglia e il 503. «Il problema tecnico è reale: come far crescere i servizi senza trasformare ogni operazione sui dati in un collo di bottiglia?»
 
-«Il paper Dynamo del 2007 racconta una risposta interna ad Amazon. DynamoDB, annunciato nel 2012, è il servizio gestito. Sono collegati nella storia, ma non sono lo stesso prodotto e non hanno automaticamente le stesse garanzie.»
+Avanti: la linea del tempo. «Il paper Dynamo del 2007 racconta una risposta interna ad Amazon. DynamoDB, annunciato nel 2012, è il servizio gestito. Sono collegati nella storia, ma non sono lo stesso prodotto e non hanno automaticamente le stesse garanzie.»
 
-**Ponte:** «Ora rendiamo concreto il nome database: prendiamo uno di voi.»
-
-## 03:30-04:30 · Slide 3 · P1
-
-**Apertura:** «Questo sei tu.» Selezionare un giocatore reale, poi un pixel sulla piccola tela.
-
-«Quello a sinistra è un item del giocatore. Qui ci sono il nome, la squadra e i pixel piazzati. Quello a destra è una cella: colore, coordinate e autore. Due entità diverse, nella stessa tabella.»
-
-«Gli attributi possono essere diversi. Questo non significa che i dati non abbiano regole: le validazioni sono nel contratto dell'applicazione. Dopo il prossimo gioco comparirà anche il punteggio.»
-
-Indicare PK e SK. Fermarsi cinque secondi per far leggere i JSON. Evitare di chiamare il pid un semplice dato pubblico: nello stage viene mostrato in un contesto amministrativo.
-
-**Ponte:** «La parte più importante è qui: come troviamo proprio questo item?»
+**Ponte:** «La parte più importante è una: come troviamo proprio quell'item?»
 
 ## 04:30-06:00 · Slide 4 · P2
 
@@ -86,7 +88,7 @@ Indicare telefono, HTTP API, Lambda, DynamoDB.
 
 **Apertura P1, primi 10 secondi:** «Arancione contro viola. Quindici secondi. Conta il vostro punteggio personale e il totale della squadra. Toccate il più velocemente possibile.»
 
-P2 preme Avvia, lascia terminare 3-2-1 e verifica la comparsa del bottone. Durante il round P1 incoraggia senza parlare sopra ogni aggiornamento. Lasciare il podio visibile almeno venti secondi; attendere la fine della grace prima di chiamare definitivo il risultato.
+P2 preme «Avvia 3 · 2 · 1» nella regia (oppure Invio sulla LIM), lascia terminare il conto alla rovescia e verifica la comparsa del bottone. Durante il round P1 incoraggia senza parlare sopra ogni aggiornamento. Lasciare il podio visibile almeno venti secondi; attendere la fine della grace prima di chiamare definitivo il risultato.
 
 **P2, commento con X-Ray:** «Gli incrementi individuali e il totale vengono salvati insieme. Il client manda piccoli batch. Se perde la risposta non inventa un altro evento: ritenta lo stesso numero di sequenza. Così una risposta persa non diventa un punto doppio.»
 
@@ -104,7 +106,7 @@ Leggere il valore realmente presente. «È una stima parziale a listino, prima d
 
 «Qui separiamo capacità della tabella e degli indici. Dire che un GSI raddoppia sempre il costo sarebbe troppo semplice: contano dimensioni e operazioni. I numeri qui derivano dalle capacità restituite alle chiamate, con i limiti della telemetria.»
 
-Premere ×1000, poi ×1000000. «Questo moltiplica una stima. Non sta generando traffico: non è un test di carico. I puntini sono una rappresentazione simulata.»
+Avanti due volte: ×1.000, poi ×1.000.000. «Questo moltiplica una stima. Non sta generando traffico: non è un test di carico. I puntini sono una rappresentazione simulata.»
 
 «AWS riporta 151 milioni di richieste al secondo al picco di Prime Day 2025. È il dato di quell'evento, non la capacità dimostrata dalla nostra tabella.»
 

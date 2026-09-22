@@ -10,10 +10,17 @@ export const config = {
 export const scope = `${config.mock ? 'mock' : config.api}:${config.sid}`;
 export const playerKey = `dynamolive:player:${scope}`;
 export const adminKey = `dynamolive:admin:${scope}`;
+/** Stage (LIM) and Regia (second screen) talk over this channel: same browser, same origin. */
+export const channelName = `dynamolive:channel:${scope}`;
 export function playUrl() {
   const url = new URL('/play', import.meta.env.VITE_PUBLIC_ORIGIN || location.origin);
   url.searchParams.set('s', config.sid); url.searchParams.set('api', config.api);
   if (config.mock) url.searchParams.set('mode', 'mock');
+  return url.href;
+}
+export function regiaUrl() {
+  const url = new URL('/regia', location.origin);
+  for (const key of ['s', 'api', 'mode']) { const value = query.get(key); if (value) url.searchParams.set(key, value); }
   return url.href;
 }
 export const read = <T>(key: string, fallback: T): T => { try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; } };

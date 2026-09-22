@@ -1,19 +1,20 @@
 import { PHASES, type Meta, type Player, type RawPixel, type TapRequest } from '../../../shared/types.js';
 import { PRICES, estimateCost } from '../../../shared/pricing.js';
+import { LOGO_H, LOGO_W, logoColor } from '../../../shared/logo.js';
 import { config, read, save } from './config';
 import { ApiFailure } from './api';
-interface MockDB {meta:Meta;players:Player[];pixels:RawPixel[];taps:number;orange:number;purple:number;pixelCount:number}
+interface MockDB {meta:Meta;players:Player[];pixels:RawPixel[];taps:number;orange:number;purple:number;pixelCount:number;conflicts:number}
 const key=`dynamolive:mockdb:${config.sid}`;
-function initial():MockDB {const now=Date.now();return {meta:{sid:config.sid,phase:'lobby',version:1,phaseStartedAt:now,phaseEndsAt:null,canvasW:48,canvasH:27,cooldownMs:1500,roundMs:15000,pixelMs:90000,canvasHidden:false,canvasRevision:0,teamsRevealed:false,roundId:null,roundStartedAt:null,roundEndsAt:null,tapGraceMs:2000,expiresAt:Math.floor(now/1000)+86400,prompt:'Scrivete DDB',botsEnabled:false},players:[],pixels:[],taps:0,orange:0,purple:0,pixelCount:0};}
+function initial():MockDB {const now=Date.now();return {meta:{sid:config.sid,phase:'lobby',version:1,phaseStartedAt:now,phaseEndsAt:null,canvasW:LOGO_W,canvasH:LOGO_H,cooldownMs:500,roundMs:15000,pixelMs:90000,canvasHidden:false,canvasRevision:0,teamsRevealed:false,roundId:null,roundStartedAt:null,roundEndsAt:null,tapGraceMs:2000,expiresAt:Math.floor(now/1000)+86400,prompt:'Accendete il logo',botsEnabled:false},players:[],pixels:[],taps:0,orange:0,purple:0,pixelCount:0,conflicts:0};}
 export async function mockTransport(path:string, body?:any):Promise<any>{
   const db=read<MockDB>(key,initial()),m=db.meta,now=Date.now();path=path.split('?')[0];
-  const fail=(status:number,message:string,retry=0):never=>{throw new ApiFailure(status,message,retry);};
+  const fail=(status:number,message:string,retry=0,code=''):never=>{throw new ApiFailure(status,message,retry,code);};
   if(m.phaseEndsAt&&now>=m.phaseEndsAt){m.phase=m.phase==='pixel'?'pixel_frozen':'hotkey_end';m.phaseEndsAt=null;m.version++;}
-  const player=(pid:string)=>db.players.find(p=>p.pid===pid)||fail(404,'Giocatore assente');
+  const player=(pid:string)=>db.players.find(p=>p.pid===pid)||fail(404,'Giocatore assente',0,'PLAYER_NOT_FOUND');
   let result:any;
   if(path==='/meta')result=m;
   else if(path==='/join'){
-    if(!['lobby','pixel'].includes(m.phase))fail(409,'Ingresso chiuso');
+    if(!['lobby','pixel'].includes(m.phase))fail(409,'Ingresso chiuso',0,'WRONG_PHASE');
     if(!/^[\p{L}\p{N}_.-]{2,12}$/u.test(body.nickname))fail(400,'Usa da 2 a 12 lettere, numeri, _ . -');
     const pid=crypto.randomUUID(),p:Player={PK:`SESSION#${m.sid}`,SK:`PLAYER#${pid}`,pid,nickname:body.nickname,team:db.players.length%2?'purple':'orange',joinedAt:now,expiresAt:m.expiresAt};db.players.push(p);result={pid,team:p.team,nickname:p.nickname};
   }else if(path.startsWith('/player/'))result=player(path.split('/')[2]);
@@ -35,9 +36,10 @@ export async function mockTransport(path:string, body?:any):Promise<any>{
     const before=db.pixels.length;db.pixels=db.pixels.filter(p=>!(p.x>=body.x1&&p.x<=body.x2&&p.y>=body.y1&&p.y<=body.y2));m.canvasRevision++;result={deleted:before-db.pixels.length,canvasRevision:m.canvasRevision};
   }else if(path==='/canvas'||path==='/canvas/changes')result={pixels:m.canvasHidden?[]:db.pixels.map(p=>({x:p.x,y:p.y,c:p.color,by:p.by,t:p.updatedAt})),cursor:now,canvasRevision:m.canvasRevision,hidden:m.canvasHidden,full:true};
   else if(path==='/pixel'){
-    const p=player(body.pid);if(p.banned)fail(403,'Giocatore escluso');if(m.phase!=='pixel')fail(409,'Tela congelata');if(now<(p.lastPixelAt||0)+m.cooldownMs)fail(429,'Attendi il cooldown',(p.lastPixelAt||0)+m.cooldownMs-now);
+    const p=player(body.pid);if(p.banned)fail(403,'Giocatore escluso',0,'BANNED');if(m.phase!=='pixel')fail(409,'Tela congelata',0,'WRONG_PHASE');const color=logoColor(body.x,body.y);if(color===null)fail(400,'Cella fuori dal logo',0,'NOT_IN_LOGO');if(body.c!==undefined&&body.c!==color)fail(400,'Colore diverso dal logo',0,'WRONG_COLOR');if(now<(p.lastPixelAt||0)+m.cooldownMs)fail(429,'Attendi il cooldown',(p.lastPixelAt||0)+m.cooldownMs-now,'COOLDOWN');
+    if(db.pixels.some(v=>v.x===body.x&&v.y===body.y&&!v.deleted)){db.conflicts=(db.conflicts||0)+1;save(key,db);fail(409,'Cella già accesa da qualcun altro',0,'PIXEL_TAKEN');}
     p.lastPixelAt=now;p.pixelsPlaced=(p.pixelsPlaced||0)+1;db.pixelCount++;
-    const raw:RawPixel={PK:`CANVAS#${m.sid}`,SK:`PX#${String(body.x).padStart(3,'0')}#${String(body.y).padStart(3,'0')}`,x:body.x,y:body.y,color:body.c,by:p.nickname,byId:p.pid,cv:m.sid,updatedAt:now,expiresAt:m.expiresAt};db.pixels=db.pixels.filter(v=>v.x!==body.x||v.y!==body.y);db.pixels.push(raw);result={ok:true,nextAllowedAt:now+m.cooldownMs};
+    const raw:RawPixel={PK:`CANVAS#${m.sid}`,SK:`PX#${String(body.x).padStart(3,'0')}#${String(body.y).padStart(3,'0')}`,x:body.x,y:body.y,color:color!,by:p.nickname,byId:p.pid,cv:m.sid,updatedAt:now,expiresAt:m.expiresAt};db.pixels=db.pixels.filter(v=>v.x!==body.x||v.y!==body.y);db.pixels.push(raw);result={ok:true,nextAllowedAt:now+m.cooldownMs};
   }else if(path.startsWith('/pixel/')){const [, ,x,y]=path.split('/');result=db.pixels.find(p=>p.x===+x&&p.y===+y)||fail(404,'Pixel vuoto');}
   else if(path==='/tap'){
     const b=body as TapRequest,p=player(b.pid);if(p.banned)fail(403,'Giocatore escluso');
@@ -51,7 +53,7 @@ export async function mockTransport(path:string, body?:any):Promise<any>{
     if(path==='/leaderboard')result={top:ranking.slice(0,10).map((p,i)=>({nickname:p.nickname,team:p.team,score:p.score||0,rank:i+1})),provisional,roundId:m.roundId};
     else {const p=player(path.split('/')[2]),i=ranking.indexOf(p);result={rank:i<0?null:i+1,total:ranking.length,score:p.score||0,provisional};}
   }else if(path==='/stats'){
-    const stats={playersJoined:db.players.length,pixelsPlaced:db.pixelCount,taps:db.taps,teamOrange:db.orange,teamPurple:db.purple,apiCalls:0,wruTable:0,wruGsi:0,rruTable:0,rruGsi:0,lambdaMs:0,estimated:true as const,expiresAt:m.expiresAt};result={...stats,prices:PRICES,estimatedCost:estimateCost(stats),costBasis:'on-demand-list-price'};
+    const stats={playersJoined:db.players.length,pixelsPlaced:db.pixelCount,pixelConflicts:db.conflicts||0,taps:db.taps,teamOrange:db.orange,teamPurple:db.purple,apiCalls:0,wruTable:0,wruGsi:0,rruTable:0,rruGsi:0,lambdaMs:0,estimated:true as const,expiresAt:m.expiresAt};result={...stats,prices:PRICES,estimatedCost:estimateCost(stats),costBasis:'on-demand-list-price'};
   }else fail(404,'Endpoint mock non implementato');
   save(key,db);return {...result,serverTime:now};
 }
