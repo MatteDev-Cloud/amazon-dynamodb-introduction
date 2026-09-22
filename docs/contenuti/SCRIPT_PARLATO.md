@@ -14,7 +14,7 @@ Lasciare circa venti secondi al pubblico. P2 controlla la comparsa dei nickname.
 
 ## 01:00-02:30 · Scena A · P1, regia P2
 
-**Apertura:** «Scrivete DDB sulla tela. Toccate un quadratino, poi scegliete il colore. Tra un pixel e l'altro passano tre secondi. Avete novanta secondi.»
+**Apertura:** «Scrivete DDB sulla tela. Toccate un quadratino, poi scegliete il colore. Tra un pixel e l'altro passa un secondo e mezzo. Avete novanta secondi.»
 
 «Ogni cella salvata è una scrittura. Il telefono mostra subito un'anteprima, ma il server decide se accettarla. Due persone possono scegliere la stessa cella: il database conserva lo stato aggiornato, non due disegni separati.»
 
@@ -88,13 +88,13 @@ Indicare telefono, HTTP API, Lambda, DynamoDB.
 
 P2 preme Avvia, lascia terminare 3-2-1 e verifica la comparsa del bottone. Durante il round P1 incoraggia senza parlare sopra ogni aggiornamento. Lasciare il podio visibile almeno venti secondi; attendere la fine della grace prima di chiamare definitivo il risultato.
 
-**P2, commento con Inspector:** «Gli incrementi individuali e il totale vengono salvati insieme. Il client manda piccoli batch. Se perde la risposta non inventa un altro evento: ritenta lo stesso numero di sequenza. Così una risposta persa non diventa un punto doppio.»
+**P2, commento con X-Ray:** «Gli incrementi individuali e il totale vengono salvati insieme. Il client manda piccoli batch. Se perde la risposta non inventa un altro evento: ritenta lo stesso numero di sequenza. Così una risposta persa non diventa un punto doppio.»
 
 «La classifica durante il round usa un GSI. Se avete visto un piccolo ritardo, l'indice può non aver ancora ricevuto l'ultima modifica. Se non è successo, non fingiamo un glitch: è una proprietà possibile, non una scena da garantire.»
 
 **P1:** «Si chiama HOT KEY perché tutti aggiornano anche STATS. Alla nostra scala è una scelta semplice. A una scala molto maggiore sarebbe un punto di contesa: potremmo dividere il contatore o costruire un'aggregazione. Non lo abbiamo fatto qui.»
 
-Dedicare il tempo restante alla lettura di una richiesta nell'Inspector. Spiegare che il residuo di latenza comprende rete e applicazione, non una misura isolata della rete. **Ponte:** «E quanto è costata questa scelta?»
+Dedicare il tempo restante alla lettura di una richiesta nell'X-Ray. Spiegare che il residuo di latenza comprende rete e applicazione, non una misura isolata della rete. **Ponte:** «E quanto è costata questa scelta?»
 
 ## 10:00-11:30 · Slide 7 · P2
 

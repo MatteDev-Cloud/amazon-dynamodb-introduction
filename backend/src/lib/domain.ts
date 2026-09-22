@@ -29,7 +29,7 @@ export function makeMeta(sid: string, input: SessionConfig, now: number): Meta {
   return {
     sid, phase: 'lobby', version: 1, phaseStartedAt: now, phaseEndsAt: null,
     canvasW: config('canvasW',48,1,48), canvasH: config('canvasH',27,1,27),
-    cooldownMs: config('cooldownMs',3000,100,60000), roundMs: config('roundMs',15000,1000,60000), pixelMs: config('pixelMs',90000,1000,300000),
+    cooldownMs: config('cooldownMs',1500,100,60000), roundMs: config('roundMs',15000,1000,60000), pixelMs: config('pixelMs',90000,1000,300000),
     canvasHidden: false, canvasRevision: 0, teamsRevealed: false, roundId: null, roundStartedAt: null, roundEndsAt: null,
     tapGraceMs: 2000, expiresAt: Math.floor(now/1000)+86400,
     prompt: input.prompt === undefined ? 'Scrivete DDB' : text(input.prompt, /^.{1,120}$/u, 'prompt'), botsEnabled: false,

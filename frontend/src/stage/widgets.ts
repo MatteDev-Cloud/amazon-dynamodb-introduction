@@ -21,7 +21,7 @@ export class Meter {
 }
 export class Inspector {
   node=el('aside','inspector');visible=false;feed:string[]=[];
-  update(api:Api){this.node.hidden=!this.visible;if(!this.visible)return;this.node.replaceChildren(el('p','eyebrow','INSPECTOR · NON È AWS X-RAY'));
+  update(api:Api){this.node.hidden=!this.visible;if(!this.visible)return;this.node.replaceChildren(el('p','eyebrow','X-RAY · NON È IL SERVIZIO AWS X-RAY'));
     const item=api.inspect;if(!item){this.node.append(el('p','','In attesa di misure API reali.'));return;}
     const details=item.details;this.node.append(el('h3','',item.path),el('p','mono',`DynamoDB ${details.ddbMs.toFixed(1)} ms · resto ${Math.max(0,item.totalMs-details.ddbMs).toFixed(1)} ms`));
     const bar=el('div','latency');const part=el('i');part.style.width=`${Math.min(100,details.ddbMs/Math.max(1,item.totalMs)*100)}%`;bar.append(part);this.node.append(bar,el('h4','','Operazioni e capacità'),json(details.operations.length?details.operations:details),el('h4','','Risposta · estratto'),json(limit(item.data)),el('h4','','Feed ricostruito dalle letture'),...this.feed.slice(-5).map(v=>el('p','mono',v)));

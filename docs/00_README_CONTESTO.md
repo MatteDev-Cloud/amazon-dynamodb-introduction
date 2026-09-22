@@ -8,7 +8,7 @@
 | File | Contenuto |
 |---|---|
 | `00_README_CONTESTO.md` | Questo file: obiettivo, vincoli, decisioni prese, stack, glossario |
-| `01_GIOCHI_SPEC.md` | Regole dei giochi + specifica tecnica (tabella, GSI, API, fasi, Inspector, tassametro) |
+| `01_GIOCHI_SPEC.md` | Regole dei giochi + specifica tecnica (tabella, GSI, API, fasi, X-Ray, tassametro) |
 | `02_PRESENTAZIONE.md` | Scene/slide, timeline dei 15', narrativa, memorable moments, identità visiva |
 | `03_DOCUMENTO_APPROFONDIMENTO.md` | Struttura del documento di studio e cosa va dove |
 | `04_TASKS_ROADMAP.md` | Backlog a fasi con checkbox, critical path, piano B, checklist, decisioni aperte |
@@ -45,7 +45,7 @@ Accanto alla presentazione c'è un **documento di approfondimento** da studiare.
    - **"Lo scontrino"**: costo reale in tempo reale.
    - Il 2 e il 6 vivono in un **"tassametro" sempre visibile in un angolo**, con focus sull'aspetto **economico**.
    - Bonus: in chiusura la tela finale con il countdown del TTL.
-6. **Inspector** (ex "X-Ray", rinominato perché **AWS X-Ray è un servizio esistente**): pannello frontend che mostra query reali, item grezzi, capacità consumata e latenza. Costo aggiuntivo ≈ 0. **Da confermare, ma consigliato.**
+6. **X-Ray** (nome del pannello interno del progetto; **non è il servizio AWS X-Ray** — collisione di nome nota e accettata dal team, va chiarita a voce durante il talk): pannello frontend che mostra query reali, item grezzi, capacità consumata e latenza. Costo aggiuntivo ≈ 0. **Confermato.**
 7. **Collegamento narrativo slide ↔ giochi:** approvato, con i giochi integrati (vedi `02_`).
 8. **Tempo reale via polling**, non WebSocket: meno costo, meno codice, meno rischio.
 9. **Una sola tabella DynamoDB, una sola Lambda, una sola SPA.**
@@ -85,7 +85,7 @@ Il 90% dello sviluppo si fa contro **DynamoDB Local (Docker)**, a costo zero.
 
 - **Frontend:** Vite + TypeScript. Vanilla o Preact, niente di pesante. Una SPA con due route:
   - `/play` → telefoni del pubblico;
-  - `/stage` → deck + giochi + Inspector + tassametro (maxischermo).
+  - `/stage` → deck + giochi + X-Ray + tassametro (maxischermo).
 - **Hosting:** S3 + CloudFront (HTTPS, necessario per i telefoni).
 - **API:** API Gateway **HTTP API** (CORS, throttling di default).
 - **Backend:** **1 Lambda** Node.js 22 + TypeScript, arm64, 256 MB, timeout 5s, router interno. SDK v3 (`@aws-sdk/lib-dynamodb`).
@@ -111,7 +111,7 @@ dynamolive/
 │  ├─ src/stage/deck/        motore slide (frecce, scorciatoie)
 │  ├─ src/stage/slides/      1 componente per slide
 │  ├─ src/stage/games/       PixelWallStage, HotKeyStage
-│  ├─ src/stage/widgets/     Meter (tassametro), Inspector
+│  ├─ src/stage/widgets/     Meter (tassametro), X-Ray
 │  └─ src/shared/            api.ts, config.ts, tokens.css, palette.ts
 ├─ bots/                     pixel-bot.ts, hotkey-bot.ts
 ├─ scripts/                  seed-local.ts, reset-session.ts
@@ -128,7 +128,7 @@ dynamolive/
 | `pid` | Player id, UUID generato dal server al join |
 | **fase** | Stato globale della sessione nell'item `META`. **Le slide cambiano fase, i telefoni la seguono** |
 | **stage** | Il maxischermo (`/stage`) |
-| **Inspector** | Pannello "sotto il cofano" sullo stage |
+| **X-Ray** | Pannello "sotto il cofano" sullo stage (nome interno; non è il servizio AWS X-Ray) |
 | **tassametro** | Widget nell'angolo che mostra richieste, scritture e costo stimato |
 | **regia** | Il meccanismo stage → META → telefoni |
 

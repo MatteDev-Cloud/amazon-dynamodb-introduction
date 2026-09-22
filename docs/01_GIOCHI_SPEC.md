@@ -29,7 +29,7 @@ Le fasi vivono nell'item `META`. Lo stage le cambia (endpoint admin) quando si a
 | `pixel_frozen` | Tela congelata (usata in slide 3–4) | "Guarda lo schermo 👀" |
 | `talk` | Slide teoriche | "Guarda lo schermo" + squadra (dopo la slide 4) |
 | `hotkey_ready` | Regole + 3-2-1 | "Preparati!" + colore squadra |
-| `hotkey_running` | Barre live + tiro alla fune + Inspector | **Bottone TAP** + countdown |
+| `hotkey_running` | Barre live + tiro alla fune + X-Ray | **Bottone TAP** + countdown |
 | `hotkey_end` | Podio | "Sei 7° su 43" + top 3 |
 | `end` | Tela finale + countdown TTL + QR documento | Tela finale + link al documento |
 
@@ -45,7 +45,7 @@ Il campo `META.version` si incrementa a ogni cambio: il telefono ridisegna la sc
 
 - **Tela:** 48×27 pixel (16:9, 1.296 celle).
 - **Palette:** 8 colori (vedi `02_` §Identità visiva).
-- **Cooldown:** 3 secondi per giocatore, **fatto rispettare dal database** (condition expression), non solo dal client.
+- **Cooldown:** 1,5 secondi per giocatore, **fatto rispettare dal database** (condition expression), non solo dal client.
 - **Conflitti:** se due persone colorano lo stesso pixel, **vince l'ultimo**.
 - **Durata:** 90 secondi, poi la tela si congela.
 - **Prompt:** da decidere. Opzioni: "scrivete DDB", "un cuore al centro", "il logo della scuola", tela libera.
@@ -106,7 +106,7 @@ Su una tela proiettata, prima o poi qualcuno disegna qualcosa di inappropriato. 
 - 3-2-1 grande, poi il round.
 - Top 10 come barre orizzontali animate (FLIP animation sui sorpassi).
 - Barra delle squadre in alto (tiro alla fune da `STATS`).
-- Inspector aperto di default a lato.
+- X-Ray aperto di default a lato.
 - Leaderboard in polling ogni **1s**, `STATS` ogni 1s.
 - A fine round, il podio con i top 3.
 
@@ -120,7 +120,7 @@ Mitigazione nel codice (e da raccontare come scelta di design): la Lambda aggreg
 
 ### 3.5 Il glitch onesto
 
-Il telefono può mostrare 312 mentre la classifica dice 309 per un istante. Non è un bug: il GSI è **eventually consistent**. Se succede, indicatelo. Se non succede, mostratelo nell'Inspector (timestamp dell'item contro timestamp della lettura).
+Il telefono può mostrare 312 mentre la classifica dice 309 per un istante. Non è un bug: il GSI è **eventually consistent**. Se succede, indicatelo. Se non succede, mostratelo nell'X-Ray (timestamp dell'item contro timestamp della lettura).
 
 ### 3.6 Cosa insegna
 
@@ -231,7 +231,7 @@ Base: `https://<api-id>.execute-api.eu-central-1.amazonaws.com`. Tutte le rispos
 
 ---
 
-## 6. Inspector
+## 6. X-Ray
 
 Pannello laterale dello stage, attivato con il tasto **I**. **Non è AWS X-Ray**: è puro frontend.
 
@@ -308,7 +308,7 @@ I prezzi vanno in `shared/config.ts`. **⚠️ DA VERIFICARE sul listino ufficia
 | Tasto | Azione |
 |---|---|
 | → / ← | Slide successiva / precedente (e cambio fase dove previsto) |
-| I | Inspector on/off |
+| I | X-Ray on/off |
 | M | Tassametro: angolo ↔ a tutto schermo |
 | F | Congela la tela |
 | H | Nascondi la tela (moderazione) |

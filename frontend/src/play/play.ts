@@ -20,7 +20,7 @@ export function startPlay(root:HTMLElement,api:Api){
     finally{placing=false;wall.optimistic=undefined;wall.draw();}
   });b.style.background=color;b.setAttribute('aria-label',`Colore ${['bianco','nero','lime','arancione','viola','ciano','rosso','giallo'][c]}`);palette.append(b);});
   async function recover(){if(recovering)return;const pid=read<string|null>(playerKey,null);if(!pid)return;recovering=true;api.pid=pid;
-    try{player=await api.call<Player>(`/player/${encodeURIComponent(pid)}`);nextAllowed=(player.lastPixelAt||0)+(meta?.cooldownMs||3000);}
+    try{player=await api.call<Player>(`/player/${encodeURIComponent(pid)}`);nextAllowed=(player.lastPixelAt||0)+(meta?.cooldownMs||1500);}
     catch(e){if(e instanceof ApiFailure&&e.status===404){localStorage.removeItem(playerKey);api.pid='';}else if(e instanceof ApiFailure&&e.status===403){content.replaceChildren(el('h1','','Partecipazione sospesa'));renderKey='banned';}else showError(e);}
     finally{recovering=false;}
   }

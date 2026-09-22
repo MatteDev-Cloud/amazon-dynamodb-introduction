@@ -70,11 +70,11 @@
 
 **Output:** entrambi i giochi giocabili su DEV con 3–4 telefoni.
 
-## Fase 4 — Inspector e tassametro (1–2 giorni)
+## Fase 4 — X-Ray e tassametro (1–2 giorni)
 
 - [ ] `lib/inspect.ts`: `_inspect` solo con l'header `x-inspect: 1`, `ReturnConsumedCapacity: INDEXES`, misura di `ddbMs`
 - [ ] `lib/meter.ts`: accumulo di modulo + flush ogni 2s su STATS
-- [ ] Stage: pannello Inspector (richiesta, risposta, costo, latenza, feed "ricostruito")
+- [ ] Stage: pannello X-Ray (richiesta, risposta, costo, latenza, feed "ricostruito")
 - [ ] Widget tassametro (angolo ↔ tutto schermo) con prezzi in `config.ts` **verificati**
 - [ ] Proiezione ×1.000 / ×1.000.000 con puntini simulati e didascalia fissa
 
@@ -181,7 +181,7 @@ I due punti più rischiosi:
 - [ ] Lambda pre-riscaldata (2–3 chiamate)
 - [ ] Hotspot pronto
 - [ ] QR testato dall'ultima fila
-- [ ] Scorciatoie ripassate; Inspector e tassametro visibili
+- [ ] Scorciatoie ripassate; X-Ray e tassametro visibili
 - [ ] Notifiche del portatile disattivate
 
 ### Dopo
@@ -193,10 +193,10 @@ I due punti più rischiosi:
 
 ## Decisioni aperte
 
-- [ ] Nome del pannello: **Inspector** / "Sotto il cofano" / altro
-- [ ] Tela 48×27 e cooldown 3s: confermare o cambiare
-- [ ] Prompt di Pixel Wall
-- [ ] Nickname univoci sì/no (`[L2]` con transazione)
-- [ ] Cooldown con `TransactWriteItems` sì/no (`[L2]`)
-- [ ] Tassametro in € o $ (se in €, dichiarare il cambio)
-- [ ] Chi parla in quale scena (script, Fase 5)
+- [x] ~~Nome del pannello~~ → confermato: **X-Ray** (nome interno; collide volutamente col nome del servizio AWS X-Ray, va chiarito a voce durante il talk)
+- [x] ~~Tela 48×27 e cooldown 3s~~ → tela confermata 48×27 invariata; cooldown ridotto a **1,5 s** (con 20-25 giocatori concorrenti attesi, 3s rendeva il gioco troppo lento)
+- [x] ~~Prompt di Pixel Wall~~ → confermato: «Scrivete DDB»
+- [x] ~~Nickname univoci sì/no~~ → confermato: **no**, restano non univoci (evita la complessità di una transazione dedicata al join)
+- [x] ~~Cooldown con `TransactWriteItems`~~ → già implementato: sì, cooldown e scrittura pixel condividono la stessa transazione (vedi `06_CONTRATTO_CONDIVISO.md`)
+- [x] ~~Tassametro in € o $~~ → già implementato: **USD**, prezzi verificati per Francoforte (vedi `shared/pricing.ts`)
+- [ ] Chi parla in quale scena (script, Fase 5) — bozza P1/P2 pronta in `docs/contenuti/SCRIPT_PARLATO.md`, resta da assegnare alle due persone reali

@@ -4,7 +4,7 @@ import { config, read, save } from './config';
 import { ApiFailure } from './api';
 interface MockDB {meta:Meta;players:Player[];pixels:RawPixel[];taps:number;orange:number;purple:number;pixelCount:number}
 const key=`dynamolive:mockdb:${config.sid}`;
-function initial():MockDB {const now=Date.now();return {meta:{sid:config.sid,phase:'lobby',version:1,phaseStartedAt:now,phaseEndsAt:null,canvasW:48,canvasH:27,cooldownMs:3000,roundMs:15000,pixelMs:90000,canvasHidden:false,canvasRevision:0,teamsRevealed:false,roundId:null,roundStartedAt:null,roundEndsAt:null,tapGraceMs:2000,expiresAt:Math.floor(now/1000)+86400,prompt:'Scrivete DDB',botsEnabled:false},players:[],pixels:[],taps:0,orange:0,purple:0,pixelCount:0};}
+function initial():MockDB {const now=Date.now();return {meta:{sid:config.sid,phase:'lobby',version:1,phaseStartedAt:now,phaseEndsAt:null,canvasW:48,canvasH:27,cooldownMs:1500,roundMs:15000,pixelMs:90000,canvasHidden:false,canvasRevision:0,teamsRevealed:false,roundId:null,roundStartedAt:null,roundEndsAt:null,tapGraceMs:2000,expiresAt:Math.floor(now/1000)+86400,prompt:'Scrivete DDB',botsEnabled:false},players:[],pixels:[],taps:0,orange:0,purple:0,pixelCount:0};}
 export async function mockTransport(path:string, body?:any):Promise<any>{
   const db=read<MockDB>(key,initial()),m=db.meta,now=Date.now();path=path.split('?')[0];
   const fail=(status:number,message:string,retry=0):never=>{throw new ApiFailure(status,message,retry);};

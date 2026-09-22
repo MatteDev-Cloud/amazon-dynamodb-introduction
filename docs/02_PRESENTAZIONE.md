@@ -89,7 +89,7 @@
   - Ponte: *"La tela era collaborazione: tante persone, tante chiavi diverse. Ora facciamo l'opposto: tutti contro tutti, sugli stessi contatori."*
 
 ### 🎮 B — HOT KEY (2'30")
-- **Sequenza:** regole (10") → 3-2-1 → round da 15" → podio (20") → commento con l'Inspector aperto (≈1').
+- **Sequenza:** regole (10") → 3-2-1 → round da 15" → podio (20") → commento con l'X-Ray aperto (≈1').
 - **Orale durante o dopo:**
   - `ADD` atomico: "43 persone, nessun lock, nessun punto perso".
   - Classifica = GSI già ordinato.
