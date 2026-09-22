@@ -2,7 +2,7 @@
 
 ## Consegna
 
-SPA Vite + TypeScript vanilla con `/play` e `/stage`; API sul contratto v1 e tipi importati da `shared/types.ts`. Sono inclusi giochi, regia, QR generati nel browser, Inspector, tassametro, mock esplicito, fallback statico, font locali con licenze, diagrammi SVG, copione e approfondimento Markdown/PDF.
+SPA Vite + TypeScript vanilla con `/play` e `/stage`; API sul contratto v1 e tipi importati da `shared/types.ts`. Sono inclusi giochi, regia, QR generati nel browser, X-Ray, tassametro, mock esplicito, fallback statico, font locali con licenze, diagrammi SVG, copione e approfondimento Markdown/PDF.
 
 File comuni, backend, bot, infrastruttura e documenti originali non sono stati modificati. Le dipendenze aggiunte sono esclusivamente in `frontend/`: Vite/TypeScript per la build e qrcode per il QR. Nessuna installazione globale, nessun DynamoDB/Java/Docker installato o avviato su questa macchina. Per verifiche browser e PDF sono stati usati Chrome e strumenti già presenti. La cartella node_modules non va trasferita: usare il lockfile sulla macchina di destinazione.
 
@@ -60,7 +60,7 @@ La build include il mock in un chunk separato, caricato soltanto con `mode=mock`
 ## Tre modalità distinte
 
 - **API reali**: modalità predefinita. Nessuna sostituzione automatica dei dati in caso di rete assente. Lo stato di connessione e gli errori restano visibili.
-- **Mock**: `/stage?mode=mock&s=prova-ui` e `/play?mode=mock&s=prova-ui`, nella stessa origine e nello stesso profilo browser. Il database dimostrativo usa localStorage; non sincronizza dispositivi diversi. La dicitura DEMO/SIMULATO resta visibile. Nuova prova = nuovo sid. Non simula integralmente conflitti, throttling e latenze del servizio; l'Inspector non inventa capacità misurate. Il comando bot modifica il flag, ma non esiste un runner mock.
+- **Mock**: `/stage?mode=mock&s=prova-ui` e `/play?mode=mock&s=prova-ui`, nella stessa origine e nello stesso profilo browser. Il database dimostrativo usa localStorage; non sincronizza dispositivi diversi. La dicitura DEMO/SIMULATO resta visibile. Nuova prova = nuovo sid. Non simula integralmente conflitti, throttling e latenze del servizio; l'X-Ray non inventa capacità misurate. Il comando bot modifica il flag, ma non esiste un runner mock.
 - **Statico**: `/stage?mode=static`. Undici scene senza chiamate API, con dati esemplificativi dichiarati, tela congelata, JSON, podio e costo dimostrativo. Frecce e salti navigano senza cambiare una sessione. Il QR della lobby rimane un link alla destinazione configurata: non abilita una partita offline sui telefoni.
 
 Nessuna modalità riproduce uno storico dei pixel: ByTime contiene gli ultimi stati, non una cronologia.
@@ -87,7 +87,7 @@ Le fasi sono monotone. Indietro non modifica META; i tasti 1-8 saltano alle slid
 | --- | --- |
 | Frecce | Scena precedente/successiva |
 | 1-8 | Slide numerata, salto solo visuale |
-| I | Inspector |
+| I | X-Ray |
 | M | Tassametro espanso/compatto |
 | F | Congela Pixel Wall |
 | H | Nasconde/mostra la tela |
@@ -114,7 +114,7 @@ Il timer usa serverTime compensato sul punto medio della richiesta. I tap vengon
 
 Il GSI può ritardare durante il round. Il podio resta provvisorio fino alla fine della grace; non annunciare vincitori prima del consolidamento. La classifica anima i cambi di posizione: nickname identici nella stessa squadra non permettono identità visuali certe senza un identificativo pubblico aggiuntivo, quindi i dati restano corretti ma l'animazione può essere ambigua.
 
-## Inspector e costi
+## X-Ray e costi
 
 Il pannello mostra operazioni, parametri strutturali, capacità, estratto della risposta e tempo DB rispetto al totale. Il residuo non è una misura isolata della rete. Il feed indica esplicitamente che è ricostruito dalle letture, sia per pixel sia per punteggi.
 

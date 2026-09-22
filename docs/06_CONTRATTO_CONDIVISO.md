@@ -6,7 +6,7 @@ Stato: interfaccia implementativa proposta dall'agente A; pronta per la revision
 
 Base locale `http://localhost:3001`, prefisso `/s/{sid}`; sid 1–48 caratteri ASCII alfanumerici, `_` o `-`. JSON UTF-8; ogni risposta include `serverTime` in millisecondi. Errori `{error,message,serverTime,retryInMs?}`. Header admin `x-admin-key`, mai nell'URL. Il frontend deve chiedere la chiave al presentatore e conservarla solo nella sessione; non inserirla nella build.
 
-Il pid è una credenziale bearer: join, il proprietario e lo stage autenticato lo ricevono. `GET /player/{pid}` richiede `x-player-id` uguale al pid oppure la chiave admin. Le API di gioco accettano pid nel body. Lobby, item grezzi dei pixel, STATS e Inspector richiedono admin; la classifica pubblica non espone pid. Non loggare body o chiavi. CORS limita browser consentiti, non sostituisce l'autorizzazione.
+Il pid è una credenziale bearer: join, il proprietario e lo stage autenticato lo ricevono. `GET /player/{pid}` richiede `x-player-id` uguale al pid oppure la chiave admin. Le API di gioco accettano pid nel body. Lobby, item grezzi dei pixel, STATS e X-Ray richiedono admin; la classifica pubblica non espone pid. Non loggare body o chiavi. CORS limita browser consentiti, non sostituisce l'autorizzazione.
 
 | Metodo e suffisso | Input | Risposta oltre a serverTime |
 |---|---|---|
@@ -37,7 +37,7 @@ Transizioni sequenziali: lobby → pixel → pixel_frozen → talk → hotkey_re
 
 Pixel e HOT KEY scadono secondo il tempo server, anche senza stage connesso; la prima richiesta successiva materializza pixel_frozen/hotkey_end. Non è un timer in background. Passare a hotkey_end prima del termine tronca il round; end è ammesso solo dopo la finestra finale di tap. `teamsRevealed` diventa true entrando in talk. Il telefono non mostra team prima di allora, pur avendolo ricevuto al join.
 
-Default: 48×27, cooldown 3000 ms, pixel 90000 ms, round 15000 ms, grace tap 2000 ms. Prompt provvisorio configurabile: «Scrivete DDB». Nickname non univoci. Una sola partita HOT KEY per sid. Date in ms, TTL in secondi. La scadenza sessione è fissata alla creazione a +24h (non ricalcolata alla fine per evitare un aggiornamento non atomico di tutti gli item); l'app filtra subito gli scaduti, AWS li elimina asincronamente.
+Default: 48×27, cooldown 1500 ms, pixel 90000 ms, round 15000 ms, grace tap 2000 ms. Prompt provvisorio configurabile: «Scrivete DDB». Nickname non univoci. Una sola partita HOT KEY per sid. Date in ms, TTL in secondi. La scadenza sessione è fissata alla creazione a +24h (non ricalcolata alla fine per evitare un aggiornamento non atomico di tutti gli item); l'app filtra subito gli scaduti, AWS li elimina asincronamente.
 
 Persistenza telefono: chiave localStorage per sid contenente pid; al reload GET player con x-player-id e GET meta. 404: eliminare il pid salvato e proporre join se ancora aperto. Compensare l'orologio dal punto medio richiesta/risposta e serverTime.
 
@@ -55,7 +55,7 @@ Limite server: bucket temporali da 500ms, massimo 12 tap per bucket, più limite
 
 Update PLAYER e incremento STATS (squadra, taps) avvengono nella stessa transazione, con controllo META: i totali non dipendono dalla memoria Lambda. Il costo/contesa della hot key è intenzionale a questa scala. In hotkey_running la classifica usa ByScore eventualmente consistente; in hotkey_end/end deriva da Query forte dei giocatori e rimane `provisional:true` fino alla fine della grace. Parità: ordine score desc, joinedAt asc, pid asc; rank ordinale. Posizione nulla per chi non ha giocato; total conta i partecipanti al round.
 
-## Inspector, misure e bot
+## X-Ray, misure e bot
 
 `x-inspect: 1` funziona solo insieme ad admin. `_inspect` mantiene op/params/consumed/ddbMs/items per il riepilogo e aggiunge operations per tutte le chiamate. I parametri mostrati sono strutturali: nessuna credenziale/pid nei valori. Costi da ReturnConsumedCapacity INDEXES, con unità tabella/GSI separate; transazioni e aggiornamenti degli indici possono costare più di una semplice scrittura.
 

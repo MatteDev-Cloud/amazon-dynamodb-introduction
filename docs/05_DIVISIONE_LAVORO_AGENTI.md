@@ -7,7 +7,7 @@ Questo documento divide la realizzazione in due incarichi da affidare a due agen
 | | Agente A — Backend e infrastruttura | Agente B — Frontend e presentazione |
 |---|---|---|
 | Obiettivo | Rendere disponibili dati, API e ambiente di esecuzione affidabili | Realizzare l'esperienza completa del pubblico e dei presentatori |
-| Responsabilità | DynamoDB, Lambda, API, SAM, strumenti locali, bot | SPA, telefoni, stage, slide, Inspector, tassametro, contenuti |
+| Responsabilità | DynamoDB, Lambda, API, SAM, strumenti locali, bot | SPA, telefoni, stage, slide, X-Ray, tassametro, contenuti |
 | Cartelle di proprietà | `backend/`, `infra/`, `scripts/`, `bots/`, `shared/` | `frontend/`, `docs/contenuti/` |
 | Documenti nuovi | `docs/06_CONTRATTO_CONDIVISO.md`, `docs/07_GUIDA_TECNICA.md` | `docs/08_GUIDA_PRESENTAZIONE.md`, documento di approfondimento e script in `docs/contenuti/` |
 | Verifica finale | API e backend funzionanti contro DynamoDB Local | Percorso completo da lobby a chiusura su stage e telefono |
@@ -28,7 +28,7 @@ Il contratto deve fissare:
 - Formato di `_inspect`, statistiche, unità di capacità e parametri del costo stimato.
 - Cursore dei delta della tela, deduplicazione, retry dei tap e comportamento degli ultimi batch alla fine del round.
 - Avvio/arresto dei bot e modalità locale: definire un meccanismo realizzabile, distinguendo server locale e Lambda.
-- Valori configurabili e valori iniziali: tela 48×27, cooldown 3 s, Pixel Wall 90 s, HOT KEY 15 s, palette prevista.
+- Valori configurabili e valori iniziali: tela 48×27, cooldown 1,5 s, Pixel Wall 90 s, HOT KEY 15 s, palette prevista.
 
 Le scelte ancora aperte nei documenti vanno riportate come tali. Per quelle non bloccanti, usare un valore provvisorio configurabile e dichiararlo: non presentarlo come una decisione già approvata.
 
@@ -78,7 +78,7 @@ Questa verifica non deve ampliare lo stack: restano una SPA, una Lambda, una tab
 4. Implementare Pixel Wall su telefono e stage: canvas, zoom/pan, palette, cooldown, feedback ottimistico, selezione del pixel e comandi di moderazione.
 5. Implementare HOT KEY: bottone, batching e retry, countdown, classifica animata, tiro alla fune e podio.
 6. Realizzare il deck con otto slide e tre scene, scorciatoie e cambi fase. Collegare i JSON e gli esempi ai dati reali della sessione.
-7. Realizzare Inspector e tassametro, usando le misure e i parametri forniti dall'agente A. Rendere esplicita la natura simulata delle proiezioni.
+7. Realizzare X-Ray e tassametro, usando le misure e i parametri forniti dall'agente A. Rendere esplicita la natura simulata delle proiezioni.
 8. Integrare controlli dei bot, modalità locale, slide statiche e apertura del video di backup. La registrazione del video completo avviene dopo l'integrazione.
 9. Scrivere script parlato e documento di approfondimento in Markdown, verificare le fonti e produrre il PDF con lo stile previsto. Richiedere all'agente A la revisione tecnica.
 10. Scrivere la guida di presentazione: sequenza del talk, scorciatoie, prove, moderazione e procedure di fallback.
@@ -86,7 +86,7 @@ Questa verifica non deve ampliare lo stack: restano una SPA, una Lambda, una tab
 ### Consegne verificabili
 
 - Percorso telefono completo, dal QR alla schermata finale.
-- Stage completo con slide, giochi, Inspector e tassametro.
+- Stage completo con slide, giochi, X-Ray e tassametro.
 - Mock separati dall'uso delle API reali e riconoscibili durante lo sviluppo.
 - Asset locali e fallback statico disponibili.
 - Script con obiettivo di durata 14:15, documento Markdown/PDF e guida del presentatore.
@@ -122,4 +122,4 @@ Gli agenti devono completare il lavoro indipendente da questi elementi e segnala
 
 ## Prompt da affidare all'agente B
 
-> Realizza l'incarico «Agente B — Frontend e presentazione» descritto in `docs/05_DIVISIONE_LAVORO_AGENTI.md`. Leggi prima tutti i documenti di contesto `docs/00_`–`04_`. L'altro agente realizza backend e infrastruttura e pubblica `docs/06_CONTRATTO_CONDIVISO.md` con `shared/types.ts`: revisiona questa interfaccia e usala per il client API e i mock, senza inventare un contratto parallelo. Puoi iniziare subito struttura visuale, deck e contenuti; collega join/META reali appena disponibili. Completa `/play`, `/stage`, giochi, Inspector, tassametro, fallback, script e documento di approfondimento con PDF. Rispetta la proprietà dei file e l'identità visiva approvata. Dichiara verifiche effettuate e prove fisiche ancora necessarie; richiedi al proprietario eventuali modifiche ai file comuni.
+> Realizza l'incarico «Agente B — Frontend e presentazione» descritto in `docs/05_DIVISIONE_LAVORO_AGENTI.md`. Leggi prima tutti i documenti di contesto `docs/00_`–`04_`. L'altro agente realizza backend e infrastruttura e pubblica `docs/06_CONTRATTO_CONDIVISO.md` con `shared/types.ts`: revisiona questa interfaccia e usala per il client API e i mock, senza inventare un contratto parallelo. Puoi iniziare subito struttura visuale, deck e contenuti; collega join/META reali appena disponibili. Completa `/play`, `/stage`, giochi, X-Ray, tassametro, fallback, script e documento di approfondimento con PDF. Rispetta la proprietà dei file e l'identità visiva approvata. Dichiara verifiche effettuate e prove fisiche ancora necessarie; richiedi al proprietario eventuali modifiche ai file comuni.

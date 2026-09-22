@@ -18,7 +18,7 @@ Letti docs/00-07, shared/types.ts e i percorsi principali del backend. Il fronte
 Il contratto espone i dati necessari ai flussi. Tre precisazioni utili per un'evoluzione, senza cambiare questa consegna:
 
 1. La classifica pubblica non ha identificatore stabile e i nickname non sono univoci. È corretto non esporre pid bearer. Per FLIP perfettamente identificabile fra omonimi servirebbe un id pubblico non utilizzabile come credenziale; oggi si usa nome, squadra e occorrenza, con ambiguità visuale dichiarata.
-2. L'Inspector non restituisce le prime tre immagini grezze degli item per ogni singola chiamata SDK. Mostriamo il payload API e gli item grezzi ottenuti dagli endpoint specifici, non inventiamo risposte SDK mancanti.
+2. L'X-Ray non restituisce le prime tre immagini grezze degli item per ogni singola chiamata SDK. Mostriamo il payload API e gli item grezzi ottenuti dagli endpoint specifici, non inventiamo risposte SDK mancanti.
 3. Aggiornare in futuro il README radice con i comandi `npm --prefix frontend ci` e `npm --prefix frontend run dev`, e il link alla guida 08. Lasciato al proprietario dei file comuni.
 
 ## Richiesta di revisione al proprietario backend

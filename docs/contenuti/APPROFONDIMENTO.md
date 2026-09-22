@@ -13,7 +13,7 @@ La domanda centrale non è «quante tabelle mi servono?», ma «quali risposte d
 
 Le prime pagine spiegano modello e operazioni. Il caso di studio mostra le scelte effettive della demo, comprese le semplificazioni. Le ultime pagine trattano affidabilità, costi e criteri di scelta. I riferimenti numerati rimandano alle fonti primarie in appendice.
 
-La demo non misura la capacità massima di DynamoDB. La modalità mock, il fallback statico e i moltiplicatori economici sono esempi dichiarati. Le misure dell'Inspector provengono dal backend reale soltanto quando si usa la modalità API.
+La demo non misura la capacità massima di DynamoDB. La modalità mock, il fallback statico e i moltiplicatori economici sono esempi dichiarati. Le misure dell'X-Ray provengono dal backend reale soltanto quando si usa la modalità API.
 
 ### Indice
 
@@ -193,7 +193,7 @@ DAX è una cache in memoria per accelerare letture compatibili: aggiunge un comp
 
 ### 7.1 Leggere lo scontrino
 
-L'Inspector mostra capacità restituite dall'SDK e tempo osservato nelle chiamate al database. Il tempo residuo fra totale client e misura DB comprende più componenti: non è una misura pura della rete. Il feed degli eventi è ricostruito dalle letture e può omettere aggiornamenti intermedi.
+L'X-Ray mostra capacità restituite dall'SDK e tempo osservato nelle chiamate al database. Il tempo residuo fra totale client e misura DB comprende più componenti: non è una misura pura della rete. Il feed degli eventi è ricostruito dalle letture e può omettere aggiornamenti intermedi.
 
 Il tassametro usa i parametri regionali condivisi dal backend: WRU, RRU, richieste HTTP API, richieste Lambda e durata osservata a 256 MB. Include separatamente tabella e GSI. Una scrittura indicizzata non costa sempre «il doppio»: dipende da operazione, dimensioni e modifica dell'indice.
 
@@ -245,7 +245,7 @@ Per provare soltanto l'interfaccia, aprire /stage?mode=mock&s=prova-ui e /play?m
 
 1. Piazzare un pixel, ricaricare il telefono e verificare che il nickname e il conteggio restino coerenti. Provare un secondo pixel prima della fine del cooldown.
 2. Confrontare gli attributi del giocatore prima e dopo il gioco.
-3. Confrontare capacità di tabella e GSI nell'Inspector.
+3. Confrontare capacità di tabella e GSI nell'X-Ray.
 4. Interrompere la rete durante HOT KEY e ripristinarla entro la grace: verificare che il batch non venga contato due volte. Se la rete torna troppo tardi, i tap pendenti non sono garantiti.
 5. Navigare indietro nel deck: la fase globale non deve retrocedere. Un nuovo round richiede un nuovo sid.
 
