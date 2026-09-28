@@ -1,10 +1,27 @@
+# Dipendenze e build
 node_modules/
+backend/dist/
+frontend/dist/
+.aws-sam/
+coverage/
+
+# Configurazione locale e segreti: mai nel repository
 .env
 .env.*
 !.env*.example
-.aws-sam/
-backend/dist/
-frontend/dist/
+*.pem
+*.key
+.aws/
+infra/samconfig.local.toml
+
+# Strumenti locali (DynamoDB Local portatile, prezzi scaricati)
 .local/
-coverage/
+
+# Sistema operativo ed editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/settings.local.json
+
 *.log
