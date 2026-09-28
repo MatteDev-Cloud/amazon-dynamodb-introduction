@@ -4,17 +4,18 @@ export class ApiFailure extends Error {
   constructor(public status: number, message: string, public retryInMs = 0, public code = '') { super(message); }
 }
 export class Api {
-  offset = 0; online = true; admin = sessionStorage.getItem(adminKey) || ''; pid = '';
+  offset = 0; online = true; latency = 0; admin = sessionStorage.getItem(adminKey) || ''; pid = '';
   inspect?: { path: string; data: unknown; details: Inspect; totalMs: number };
   transport?: (path: string, body?: unknown) => Promise<unknown>;
   now() { return Date.now() + this.offset; }
-  async call<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+  /** sid defaults to the page session; the Regia passes another one only to create a new session. */
+  async call<T>(path: string, body?: unknown, sid = config.sid): Promise<ApiResponse<T>> {
     const start = Date.now();
     try {
       let data: ApiResponse<T>;
       if (this.transport) data = await this.transport(path, body) as ApiResponse<T>;
       else {
-        const response = await fetch(`${config.api.replace(/\/$/, '')}/s/${encodeURIComponent(config.sid)}${path}`, {
+        const response = await fetch(`${config.api.replace(/\/$/, '')}/s/${encodeURIComponent(sid)}${path}`, {
           method: body === undefined ? 'GET' : 'POST', cache: 'no-store', signal: AbortSignal.timeout(5000),
           headers: { 'Content-Type': 'application/json', ...(this.admin ? {'x-admin-key': this.admin, 'x-inspect': '1'} : {}), ...(this.pid ? {'x-player-id': this.pid} : {}) },
           body: body === undefined ? undefined : JSON.stringify(body),
@@ -22,6 +23,7 @@ export class Api {
         data = await response.json();
         if (!response.ok) { const e = data as any; throw new ApiFailure(response.status, e.message || 'Richiesta rifiutata', e.retryInMs, e.error); }
       }
+      this.latency = Date.now() - start;
       this.offset = data.serverTime - (start + Date.now()) / 2;
       this.online = true;
       if (data._inspect) { const { _inspect, ...payload } = data; this.inspect = {path, data: payload, details: _inspect, totalMs: Date.now() - start}; }

@@ -3,7 +3,7 @@
   import { PHASES, type Meta, type Phase } from '../../../shared/types.js';
   import { ApiFailure } from '../shared/api';
   import { api } from '../shared/runtime';
-  import { adminKey, config, regiaUrl, scope } from '../shared/config';
+  import { adminKey, config, navigate, regiaUrl, scope } from '../shared/config';
   import { openChannel, type Message, type StageState } from '../shared/channel';
   import { Session } from '../shared/session.svelte';
   import { scenes } from './slides';
@@ -46,9 +46,9 @@
   const Current = $derived(components[scene.id as keyof typeof components]);
 
   const channel = openChannel(onMessage);
-  function snapshot(): StageState { return { scene: index, step, steps: scene.steps.length, busy, notice: session.notice, xray, meter: meterOn, detail: detail ? { x: detail.x, y: detail.y } : null, keyed }; }
+  function snapshot(): StageState { return { scene: index, step, steps: scene.steps.length, busy, notice: session.notice, xray, meter: meterOn, detail: detail ? { x: detail.x, y: detail.y } : null, keyed, video, countdown, mode: config.static ? 'static' : config.mock ? 'mock' : 'live' }; }
   function broadcast() { channel.send({ t: 'state', state: snapshot() }); }
-  $effect(() => { void [index, step, busy, session.notice, xray, meterOn, detail, keyed]; broadcast(); sessionStorage.setItem(`scene:${scope}`, JSON.stringify([index, step])); });
+  $effect(() => { void [index, step, busy, session.notice, xray, meterOn, detail, keyed, video, countdown]; broadcast(); sessionStorage.setItem(`scene:${scope}`, JSON.stringify([index, step])); });
 
   function onMessage(m: Message) {
     regiaSeen = Date.now();
@@ -65,6 +65,8 @@
     else if (m.t === 'conflict') conflicts = [...conflicts, { x: m.x, y: m.y, id: Math.random() }];
     else if (m.t === 'video') video = true;
     else if (m.t === 'reload') location.reload();
+    else if (m.t === 'safe') { xray = false; video = false; closeDetail(); }
+    else if (m.t === 'navigate') navigate(m.params, m.key);
   }
 
   function applyKey(key: string) {
@@ -146,7 +148,7 @@
     try { const r = await api.call<Meta & { phase?: Phase }>(path, body); if (r.phase) session.meta = r; await session.sync.refresh(true); }
     catch (e) { if (e instanceof ApiFailure && e.status === 409) session.meta = await api.call<Meta>('/meta').catch(() => session.meta); session.report(e); }
   }
-  function openRegia() { window.open(regiaUrl(), 'dynamolive-regia', 'popup,width=560,height=940'); }
+  function openRegia() { window.open(regiaUrl(), 'dynamolive-regia', 'popup,width=760,height=980'); }
 
   function onKey(e: KeyboardEvent) {
     if (e.target instanceof HTMLElement && (e.target.matches('input,textarea,select') || e.target.isContentEditable)) return;

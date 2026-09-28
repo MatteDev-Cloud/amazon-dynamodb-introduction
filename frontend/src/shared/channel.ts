@@ -1,7 +1,7 @@
 import { channelName } from './config';
 
 /** Stage (LIM) state as the Regia sees it. */
-export interface StageState { scene: number; step: number; steps: number; busy: boolean; notice: string; xray: boolean; meter: boolean; detail: { x: number; y: number } | null; keyed: boolean }
+export interface StageState { scene: number; step: number; steps: number; busy: boolean; notice: string; xray: boolean; meter: boolean; detail: { x: number; y: number } | null; keyed: boolean; video: boolean; countdown: string | null; mode: 'live' | 'mock' | 'static' }
 
 export type Message =
   | { t: 'hello' }                                   // regia → stage: send me your state
@@ -16,7 +16,9 @@ export type Message =
   | { t: 'close-detail' }
   | { t: 'lit'; x: number; y: number; c: number; by: string; at: number } // swarm write accepted
   | { t: 'conflict'; x: number; y: number }          // swarm write rejected: cell already lit
-  | { t: 'video' } | { t: 'reload' };
+  | { t: 'video' } | { t: 'reload' }
+  | { t: 'safe' }                                    // close every overlay on the LIM (X-Ray, pixel zoom, video)
+  | { t: 'navigate'; params: Record<string, string | null>; key?: string }; // reload the LIM with other URL parameters
 
 export function openChannel(onmessage: (message: Message) => void) {
   const channel = new BroadcastChannel(channelName);
