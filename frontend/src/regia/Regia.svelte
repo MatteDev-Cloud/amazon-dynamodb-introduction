@@ -327,7 +327,8 @@
     <div class="row wrap">
       <button class="btn small danger" class:armed={armed === 'reload'} onclick={() => confirm('reload', () => send({ t: 'reload' }))} disabled={!linked}>{armed === 'reload' ? 'Conferma ricarica' : 'Ricarica LIM'}</button>
       <button class="btn small danger" class:armed={armed === 'new'} onclick={() => confirm('new', newSession)} disabled={!api.admin && !config.mock}>{armed === 'new' ? 'Conferma nuova sessione' : 'Nuova sessione (riparte da zero)'}</button>
-      {#if backend.kind !== 'local' && !config.mock}
+      <!-- An HTTPS page cannot reliably call a backend on http://localhost (mixed content, private network access): offer it only to a local frontend. -->
+      {#if backend.kind !== 'local' && !config.mock && location.protocol === 'http:'}
         <button class="btn small danger" class:armed={armed === 'local'} onclick={() => confirm('local', local)}>{armed === 'local' ? 'Conferma passaggio' : 'Passa al backend locale'}</button>
       {/if}
     </div>

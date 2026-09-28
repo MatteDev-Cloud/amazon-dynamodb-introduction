@@ -235,7 +235,7 @@ expiresAt contiene secondi Unix. Il countdown indica scadenza logica; AWS elimin
 
 ### 8.2 Eseguire il progetto
 
-Il repository pubblico non è ancora indicato. Nel checkout, docs/07_GUIDA_TECNICA.md descrive il backend e docs/08_GUIDA_PRESENTAZIONE.md il frontend.
+Nel repository del progetto, docs/architecture.md descrive architettura e modello dati, docs/demo-guide.md l'avvio della demo e docs/aws-setup.md la configurazione AWS.
 
 Sulla macchina di destinazione, con Node 22.12 o successivo: eseguire npm ci nella radice, preparare DynamoDB Local con una delle opzioni documentate e creare una nuova sessione. Avviare le API, poi eseguire npm ci e npm run dev nella cartella frontend. Usare lo stesso sid su stage e telefono. In frontend/.env impostare la base API; non copiarvi la chiave admin.
 
