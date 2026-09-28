@@ -1,16 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: DynamoLive - one table, Lambda and HTTP API, private S3 with CloudFront OAC
+Description: DynamoLive - one table, Lambda and HTTP API, private S3 with CloudFront OAC, admin key in SSM
 Parameters:
   Environment:
     Type: String
     AllowedValues: [dev, live]
     Default: dev
-  AdminKey:
-    Type: String
-    NoEcho: true
-    MinLength: 24
-    Description: Random stage admin secret; do not commit or put in frontend bundle
   BudgetEmail:
     Type: String
     Default: ''
@@ -151,12 +146,15 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref Table
-          ADMIN_KEY: !Ref AdminKey
+          # SecureString created by hand before the first deploy (see docs/aws-setup.md); never a plain env var.
+          ADMIN_KEY_PARAMETER: !Sub '/dynamolive/${Environment}/admin-key'
           ALLOWED_ORIGINS: !If
             - IsLive
             - !Sub 'https://${Distribution.DomainName}'
             - !Sub 'https://${Distribution.DomainName},http://localhost:5173,http://127.0.0.1:5173'
       Policies:
+        - SSMParameterReadPolicy:
+            ParameterName: !Sub 'dynamolive/${Environment}/admin-key'
         - Statement:
             - Effect: Allow
               Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query, dynamodb:ConditionCheckItem]
@@ -188,3 +186,4 @@ Outputs:
   SiteBucketName: {Value: !Ref SiteBucket}
   DistributionId: {Value: !Ref Distribution}
   TableName: {Value: !Ref Table}
+  AdminKeyParameter: {Value: !Sub '/dynamolive/${Environment}/admin-key'}

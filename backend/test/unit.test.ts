@@ -4,6 +4,7 @@ import { integer, makeMeta, nextPhase, nickname, secretMatches, teamFor } from '
 import { createApp } from '../src/app.js';
 import { estimateCost, PRICES } from '../../shared/pricing.js';
 import { RequestDb } from '../src/lib/ddb.js';
+import { configuration, loadConfiguration } from '../src/lib/config.js';
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 test('nickname validation normalizes Unicode and rejects markup, profanity and oversized input',()=>{
   assert.equal(nickname('Giùlia'),'Giùlia'); assert.equal(nickname('ＡＢ'),'AB');
@@ -36,4 +37,13 @@ test('meter separates transaction condition reads from writes and GSI capacity',
   const db=new RequestDb({send:async()=>({ConsumedCapacity:[{CapacityUnits:7,ReadCapacityUnits:2,WriteCapacityUnits:5,Table:{ReadCapacityUnits:2,WriteCapacityUnits:3},GlobalSecondaryIndexes:{ByScore:{WriteCapacityUnits:2}}}]})} as any,'test');
   await db.run(new TransactWriteCommand({TransactItems:[]}));
   assert.equal(db.counters.rruTable,2);assert.equal(db.counters.wruTable,3);assert.equal(db.counters.wruGsi,2);
+});
+test('configuration prefers ADMIN_KEY, trims origins and rejects short keys',async()=>{
+  const saved={...process.env};
+  try {
+    process.env.ADMIN_KEY='k'.repeat(16);process.env.ADMIN_KEY_PARAMETER='/never/read';process.env.ALLOWED_ORIGINS='https://a.example, https://b.example,';
+    const config=await loadConfiguration();
+    assert.equal(config.adminKey,'k'.repeat(16));assert.deepEqual(config.origins,['https://a.example','https://b.example']);
+    assert.throws(()=>configuration('short'));
+  } finally { process.env=saved; }
 });
