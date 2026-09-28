@@ -1,5 +1,7 @@
 # DynamoLive
 
+> **Branch `prod`** · versione per AWS: senza DynamoDB Local né server locale, con gli script `scripts/deploy-aws.ps1` e `scripts/new-session-aws.ps1`. Per la demo locale usa il branch `develop`.
+
 **Presentazione interattiva su Amazon DynamoDB: il pubblico entra nel database con il telefono.**
 
 Durante il talk (15 minuti, due speaker) le persone in sala aprono un QR, scelgono un nome e giocano a due giochi:
