@@ -98,8 +98,19 @@ La chiave admin vive in SSM Parameter Store, non nel codice né nelle variabili 
 ## Verifiche
 
 ```powershell
-npm run typecheck; npm test                      # backend: tipi e test unitari
+npm run typecheck; npm test                      # backend: tipi, dominio e flussi su un DynamoDB finto
 npm run test:integration                         # backend su DynamoDB Local (serve Docker)
 npm --prefix frontend run typecheck; npm --prefix frontend test
-npm run build:backend; npm --prefix frontend run build:live
+npm run build:backend                            # → backend/dist/handler.js
 ```
+
+Prove nel browser (servono Chrome e un'installazione di Playwright già presente, non viene scaricato nulla):
+
+```powershell
+npm --prefix frontend run dev                    # terminale 1
+node frontend/tests/browser.mjs                  # giro completo in modalità mock, con screenshot
+node frontend/tests/closing.mjs                  # dissolvenza finale + orologio del portatile sfasato
+node frontend/tests/network.mjs                  # client reale contro un'API finta: 409, 429, riconnessione
+```
+
+Se Playwright è installato altrove: `$env:PLAYWRIGHT_MODULE = '<percorso>/node_modules/playwright'`.

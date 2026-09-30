@@ -17,7 +17,7 @@
           <div class="box soft">Poi fai le domande <b class="mono">JOIN</b></div>
         </section>
         <section class="ddb" use:reveal={{ stagger: .15, delay: .5 }}>
-          <p class="eyebrow">DynamoDB</p>
+          <p class="eyebrow">DynamoDB · NoSQL key-value e documenti</p>
           <div class="box">Le domande</div><span class="arrow">↓</span>
           <div class="box">Le chiavi che le rendono veloci</div><span class="arrow">↓</span>
           <div class="box soft">Poi i dati, già al posto giusto</div>
@@ -53,7 +53,7 @@
           <p class="verdict"><b class="display">tutto l’archivio</b> · paghi ogni item letto</p>
         </div>
       </div>
-      <p class="note" use:reveal={{ delay: .9 }}>Niente JOIN, niente aggregazioni al volo: il cassetto giusto contro rovesciare l’archivio.</p>
+      <p class="note" use:reveal={{ delay: .9 }}>Chi ha acceso il pixel in alto a destra? Con la chiave: <b>un</b> item. Senza: tutti e <b>252</b>. Niente JOIN, niente aggregazioni al volo.</p>
     {/if}
   {/key}
 </div>

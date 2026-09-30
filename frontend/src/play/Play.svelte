@@ -117,7 +117,8 @@
         }
       }, 1000, report),
     );
-    const tick = setInterval(() => { now = api.now(); online = api.online; }, 100);
+    // The closing dissolve is driven by each item's own TTL, applied locally between polls.
+    const tick = setInterval(() => { now = api.now(); online = api.online; sync.expire(now); }, 100);
     stops.push(() => clearInterval(tick));
   });
   onDestroy(() => stops.forEach(s => s()));

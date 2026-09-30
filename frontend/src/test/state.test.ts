@@ -23,3 +23,23 @@ test('429 conserva batch e rispetta retryInMs; grace impedisce invii tardivi',as
  let now=0,calls=0;const q=new TapQueue('p',initial(),async()=>{calls++;throw {status:429,retryInMs:1000};},()=>{},()=>now);q.tap();await q.flush(2000);now=900;await q.flush(2000);assert.equal(calls,1);assert.equal(q.state.pending?.seq,1);now=2001;await q.flush(2000);assert.equal(calls,1);assert.equal(q.state.pending,null);assert.equal(q.stopped,true);
 });
 test('403 interrompe i retry automatici',async()=>{let calls=0;const q=new TapQueue('p',initial(),async()=>{calls++;throw {status:403};},()=>{},()=>0);q.tap();await q.flush(1000);await q.flush(1000);assert.equal(calls,1);assert.equal(q.stopped,true);});
+test('il TTL di ogni item guida la chiusura: arriva senza toccare t, e scade localmente uno per volta',()=>{
+ const s=new CanvasState();
+ const apply=(pixels:any[],full=false)=>s.apply({pixels,full,hidden:false,cursor:1,canvasRevision:0});
+ apply([{x:0,y:0,c:1,by:'a',t:10,e:2000},{x:1,y:0,c:1,by:'b',t:20,e:2060}],true);
+ // La chiusura riscrive solo expiresAt: t resta la storia dell'accensione, quindi niente "pop" di ritorno.
+ apply([{x:0,y:0,c:1,by:'a',t:10,e:100},{x:1,y:0,c:1,by:'b',t:20,e:160}]);
+ assert.equal(s.pixels.get('0,0')?.e,100);
+ assert.equal(s.pixels.get('0,0')?.t,10);
+ assert.equal(s.expire(99_000),0);
+ assert.equal(s.expire(100_001),1,'scade solo il primo');
+ assert.equal(s.pixels.size,1);
+ assert.equal(s.expire(200_000),1);
+ assert.equal(s.pixels.size,0);
+});
+test('un item senza TTL non scade mai da solo (modalita statica e dati di esempio)',()=>{
+ const s=new CanvasState();
+ s.apply({pixels:[{x:2,y:2,c:3,by:'a',t:1}],full:true,hidden:false,cursor:1,canvasRevision:0});
+ assert.equal(s.expire(Date.now()+10**12),0);
+ assert.equal(s.pixels.size,1);
+});

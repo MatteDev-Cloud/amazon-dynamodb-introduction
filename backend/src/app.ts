@@ -2,18 +2,25 @@ import { randomUUID } from 'node:crypto';
 import { GetCommand, PutCommand, TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import type { Meta, Player, RawPixel, Stats, TapRequest } from '../../shared/types.js';
-import { PRICES, estimateCost } from '../../shared/pricing.js';
+import { PRICES, estimateCost, usageCost } from '../../shared/pricing.js';
 import type { Configuration } from './lib/config.js';
 import { logoColor } from '../../shared/logo.js';
 import { HttpError, fail, integer, makeMeta, nextPhase, nickname, pidValue, pixelKey, secretMatches, sessionKey, sidValue, teamFor } from './lib/domain.js';
 import { Meter, newClient, RequestDb } from './lib/ddb.js';
+import { Usage } from './lib/cloudwatch.js';
 
-export interface Request { method: string; path: string; headers: Record<string,string|undefined>; query: Record<string,string|undefined>; body?: unknown }
+export interface Request { method: string; path: string; headers: Record<string,string|undefined>; query: Record<string,string|undefined>; body?: unknown; apiId?: string }
 export interface Response { statusCode: number; headers: Record<string,string>; body: string }
 const conditional = (error: any) => error?.name === 'ConditionalCheckFailedException' || (error?.name === 'TransactionCanceledException' && error.CancellationReasons?.some((r:any)=>r.Code==='ConditionalCheckFailed'));
-const plainMeta = (item: any): Meta => { const {PK,SK,...meta}=item; return meta; };
-export function createApp(config: Configuration, options: {client?: DynamoDBDocumentClient; now?:()=>number} = {}) {
+// Sessions created before the closing-TTL fields existed keep working: the canvas simply expires with the session.
+const plainMeta = (item: any): Meta => {
+  const {PK,SK,...meta}=item;
+  meta.canvasExpiresAt ??= meta.expiresAt; meta.endTtlMs ??= 60000; meta.createdAt ??= meta.phaseStartedAt;
+  return meta as Meta;
+};
+export function createApp(config: Configuration, options: {client?: DynamoDBDocumentClient; now?:()=>number; usage?: Pick<Usage,'read'>} = {}) {
   const client = options.client ?? newClient(config), clock=options.now ?? Date.now, meter=new Meter();
+  const usage = options.usage ?? new Usage(config);
   const table=config.tableName;
   async function get(db: RequestDb, key: {PK:string;SK:string}) { return (await db.run(new GetCommand({TableName:table,Key:key,ConsistentRead:true}))).Item; }
   const checkMeta = (meta:Meta, now:number) => ({ConditionCheck:{TableName:table,Key:sessionKey(meta.sid,'META'),
@@ -54,6 +61,22 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
       : await db.query({IndexName:'ByScore',KeyConditionExpression:'lb = :s',ExpressionAttributeValues:{':s':`${meta.sid}#${meta.roundId}`},ScanIndexForward:false});
     items.sort((a,b)=>(b.score??0)-(a.score??0)||a.joinedAt-b.joinedAt||a.pid.localeCompare(b.pid));
     return {items,provisional};
+  }
+  /**
+   * The closing gesture. Every canvas item gets its own short `expiresAt`, evenly spread over `endTtlMs`
+   * in the order the audience lit it, so the logo dissolves on screen instead of vanishing in one frame.
+   * `updatedAt` is deliberately left untouched: this must not look like a fresh write in the ByTime feed.
+   */
+  async function dissolve(db:RequestDb,meta:Meta,now:number) {
+    const live=(await db.query({KeyConditionExpression:'PK = :pk',ExpressionAttributeValues:{':pk':`CANVAS#${meta.sid}`},ConsistentRead:true})).filter(p=>p.expiresAt>now/1000);
+    const visible=live.filter(p=>!p.deleted).sort((a,b)=>a.updatedAt-b.updatedAt), end=Math.floor((now+meta.endTtlMs)/1000);
+    if(!live.length) return 0;
+    const items=[
+      ...visible.map((p,i)=>({...p,expiresAt:Math.floor((now+(i+1)/visible.length*meta.endTtlMs)/1000)})),
+      ...live.filter(p=>p.deleted).map(p=>({...p,expiresAt:end})),
+    ];
+    for(let i=0;i<items.length;i+=99) await transaction(db,[checkMeta(meta,now),...items.slice(i,i+99).map(p=>({Put:{TableName:table,Item:p}}))]);
+    return visible.length;
   }
   return async function handle(req:Request):Promise<Response> {
     const start=performance.now(), now=clock(), db=new RequestDb(client,table);
@@ -96,7 +119,20 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
         const updated:Meta={...meta,phase,version:meta.version+1,phaseStartedAt:now,phaseEndsAt:duration===null?null:now+duration,teamsRevealed:meta.teamsRevealed||phase==='talk'};
         if(phase==='hotkey_running') Object.assign(updated,{roundId:randomUUID(),roundStartedAt:now,roundEndsAt:now+duration!});
         if(phase==='hotkey_end'&&meta.roundEndsAt!==null) updated.roundEndsAt=Math.min(meta.roundEndsAt,now);
-        return finish(200,{...await saveMeta(db,meta,updated)});
+        // Entering the closing scene is what makes the TTL short: one gesture, then the canvas expires on screen.
+        if(phase==='end') Object.assign(updated,{canvasExpiresAt:Math.floor((now+meta.endTtlMs)/1000),canvasRevision:meta.canvasRevision+1});
+        const saved=await saveMeta(db,meta,updated);
+        // The phase has already moved: a failed TTL rewrite must not turn the last slide into an error.
+        // Part of the logo would simply keep the 24 h TTL, and POST /admin/dissolve can retry it.
+        if(phase==='end') return finish(200,{...saved,dissolving:await dissolve(db,saved,now).catch(()=>null)});
+        return finish(200,{...saved});
+      }
+      if(req.method==='POST'&&path==='/admin/dissolve') {
+        // Idempotent safety net for the closing: re-arms (or restarts) the short TTL from now.
+        if(meta.phase!=='end') fail(409,'WRONG_PHASE','The closing TTL belongs to the end phase');
+        const endTtlMs=body.endTtlMs===undefined?meta.endTtlMs:integer(body.endTtlMs,5000,3600000,'endTtlMs');
+        const saved=await saveMeta(db,meta,{...meta,endTtlMs,version:meta.version+1,canvasExpiresAt:Math.floor((now+endTtlMs)/1000),canvasRevision:meta.canvasRevision+1});
+        return finish(200,{...saved,dissolving:await dissolve(db,saved,now)});
       }
       if(req.method==='POST'&&(path==='/admin/hide'||path==='/admin/bots')) {
         const field=path.endsWith('hide')?'hidden':'enabled';
@@ -125,7 +161,7 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
         const full=path==='/canvas'||revision!==meta.canvasRevision||since>now||now-since>30000;
         let pixels:RawPixel[]=[];
         if(!meta.canvasHidden||admin) pixels=await db.query(full ? {KeyConditionExpression:'PK = :pk',ExpressionAttributeValues:{':pk':`CANVAS#${sid}`},ConsistentRead:true} : {IndexName:'ByTime',KeyConditionExpression:'cv = :cv AND updatedAt >= :since',ExpressionAttributeValues:{':cv':sid,':since':Math.max(0,since-2000)}});
-        return finish(200,{pixels:pixels.filter(p=>p.expiresAt>now/1000).map(p=>({x:p.x,y:p.y,c:p.color,by:p.by,t:p.updatedAt,...(p.deleted?{deleted:true}:{})})),cursor:now,canvasRevision:meta.canvasRevision,hidden:meta.canvasHidden,full});
+        return finish(200,{pixels:pixels.filter(p=>p.expiresAt>now/1000).map(p=>({x:p.x,y:p.y,c:p.color,by:p.by,t:p.updatedAt,e:p.expiresAt,...(p.deleted?{deleted:true}:{})})),cursor:now,canvasRevision:meta.canvasRevision,hidden:meta.canvasHidden,full});
       }
       const pixelPath=/^\/pixel\/(\d+)\/(\d+)$/.exec(path);
       if(req.method==='GET'&&pixelPath) { requireAdmin(); const x=integer(Number(pixelPath[1]),0,meta.canvasW-1,'x'),y=integer(Number(pixelPath[2]),0,meta.canvasH-1,'y'); const item=await get(db,pixelKey(sid,x,y)); if(!item||item.deleted||item.expiresAt<=now/1000) fail(404,'PIXEL_NOT_FOUND','Pixel not found'); return finish(200,item); }
@@ -138,7 +174,7 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
         if(body.c!==undefined&&integer(body.c,0,7,'c')!==color) fail(400,'WRONG_COLOR','Color must match the picture');
         const p=await player(db,sid,pid,now);
         if(p.lastPixelAt!==undefined && now-p.lastPixelAt<meta.cooldownMs) fail(429,'COOLDOWN','Wait before placing another pixel',meta.cooldownMs-(now-p.lastPixelAt));
-        const pixel:RawPixel={...pixelKey(sid,x,y),x,y,color,by:p.nickname,byId:pid,cv:sid,updatedAt:now,expiresAt:meta.expiresAt};
+        const pixel:RawPixel={...pixelKey(sid,x,y),x,y,color,by:p.nickname,byId:pid,cv:sid,updatedAt:now,expiresAt:meta.canvasExpiresAt};
         try { await transaction(db,[checkMeta(meta,now),{Update:{TableName:table,Key:sessionKey(sid,`PLAYER#${pid}`),UpdateExpression:'SET lastPixelAt = :now ADD pixelsPlaced :one',ConditionExpression:'attribute_exists(PK) AND attribute_not_exists(banned) AND (attribute_not_exists(lastPixelAt) OR lastPixelAt <= :cut)',ExpressionAttributeValues:{':now':now,':one':1,':cut':now-meta.cooldownMs}}},{Put:{TableName:table,Item:pixel,ConditionExpression:'attribute_not_exists(PK) OR deleted = :yes',ExpressionAttributeValues:{':yes':true}}},statAdd(sid,{pixelsPlaced:1})]); }
         catch(e) {
           // First writer wins: the cell condition (item 2 of the transaction) failed, nothing else was written.
@@ -187,7 +223,24 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
         const pid=pidValue(rankPath[1]); requireOwner(pid); const p=await player(db,sid,pid,now), {items,provisional}=await ranking(db,meta,now),index=items.findIndex(p=>p.pid===pid);
         return finish(200,{rank:index<0?null:index+1,total:items.length,score:p.score??0,provisional});
       }
-      if(req.method==='GET'&&path==='/stats') { requireAdmin(); const item=await get(db,sessionKey(sid,'STATS')); const {PK,SK,...stats}=item; return finish(200,{...stats,prices:PRICES,costBasis:'on-demand-list-price',estimatedCost:estimateCost(stats as Stats)}); }
+      if(req.method==='GET'&&path==='/stats') {
+        requireAdmin(); const item=await get(db,sessionKey(sid,'STATS'));
+        // TTL removes items one by one: STATS can go before META. Never turn that into a 503 during the talk.
+        if(!item) fail(404,'STATS_NOT_FOUND','Counters expired or missing');
+        const {PK,SK,...stats}=item; return finish(200,{...stats,prices:PRICES,costBasis:'on-demand-list-price',estimatedCost:estimateCost(stats as Stats)});
+      }
+      if(req.method==='GET'&&path==='/admin/aws') {
+        // What AWS itself recorded, as a check on our own counters. Admin only, and never fatal for the slide.
+        const apiId=req.apiId||config.apiId;
+        if(!config.functionName&&!apiId) return finish(200,{available:false,reason:'NO_CLOUDWATCH',prices:PRICES,scope:'table-and-functions-in-region'});
+        try {
+          const measured=await usage.read(meta.createdAt,now,apiId);
+          return finish(200,{available:true,usage:measured,estimatedCost:usageCost(measured),prices:PRICES,scope:'table-and-functions-in-region'});
+        } catch(e) {
+          console.error(JSON.stringify({event:'cloudwatch_error',type:e instanceof Error?e.name:'UnknownError'}));
+          return finish(200,{available:false,reason:'CLOUDWATCH_UNAVAILABLE',prices:PRICES,scope:'table-and-functions-in-region'});
+        }
+      }
       fail(404,'NOT_FOUND','Route not found');
     } catch(error) {
       if(error instanceof HttpError) return finish(error.status,{error:error.code,message:error.message,...(error.retryInMs!==undefined?{retryInMs:error.retryInMs}:{})});

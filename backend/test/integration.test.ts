@@ -15,7 +15,7 @@ test('real DynamoDB Local: lifecycle, transactions, retries, moderation, recover
   await ensureTable(raw,tableName);
   t.after(async()=>{await raw.send(new DeleteTableCommand({TableName:tableName}));raw.destroy();});
   let now=1800000000000;
-  const app=createApp({region:'eu-central-1',endpoint,tableName,adminKey,origins:['http://localhost:5173']},{client,now:()=>now});
+  const app=createApp({region:'eu-central-1',endpoint,tableName,adminKey,origins:['http://localhost:5173'],functionName:'',apiId:''},{client,now:()=>now});
   const sid='integration';
   const call=async(method:string,path:string,body?:unknown,admin=false,query:Record<string,string>={},extra:Record<string,string>={})=>{
     const response=await app({method,path:`/s/${sid}${path}`,body,query,headers:{...(admin?{'x-admin-key':adminKey}:{}),...extra}});

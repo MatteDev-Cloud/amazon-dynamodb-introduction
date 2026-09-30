@@ -11,9 +11,11 @@
   });
   const path = 'M' + points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L');
   const events = [
-    { year: '2004', text: 'Natale: il picco manda in crisi i database relazionali di Amazon' },
+    { year: '2004', text: 'La storia all’origine: i picchi delle feste contro database che scalano crescendo' },
     { year: '2007', text: 'Paper «Dynamo»: un key-value store interno, distribuito' },
     { year: '2012', text: 'Nasce DynamoDB: lo stesso modello, come servizio gestito' },
+    // Fonte: blog AWS, vedi APPROFONDIMENTO.md nota [19]. Da riverificare prima di ogni talk
+    // (checklist); se non si riesce, dire «centinaia di milioni» senza anno né cifra.
     { year: '2025', text: 'Prime Day: picco di 151 milioni di richieste al secondo (dato AWS)' },
   ];
 </script>
@@ -38,7 +40,7 @@
       {/if}
       <text class="axis" x="0" y={H - 4}>gennaio</text><text class="axis" x={W} y={H - 4} text-anchor="end">dicembre</text>
     </svg>
-    <p class="note mono">curva illustrativa · non è una misura storica</p>
+    <p class="note mono">curva illustrativa · non è una misura storica, e il 2004 è la cornice narrativa del paper Dynamo, non un incidente documentato</p>
   </div>
   {#if step >= 2}
     <ol class="timeline" use:reveal={{ stagger: .14, y: 30 }}>

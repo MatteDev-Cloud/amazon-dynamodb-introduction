@@ -37,11 +37,16 @@ Senza regia: aggiungere `&mode=static` all'URL della LIM.
 
 | Problema | Causa probabile | Soluzione |
 | --- | --- | --- |
-| Regia: «LIM non trovata» | LIM e regia in browser/profili/origini diversi, o LIM chiusa | Aprire la regia con **R** dalla LIM; stessi parametri `s` e `api` |
+| Regia: «LIM non trovata» | LIM e regia in browser/profili/origini diversi, o LIM chiusa | Aprire la regia con **R** dalla LIM; stessi parametri `s` e `api`. La regia interroga la LIM ogni 1,5 s e non dipende più né dai timer della LIM (che il browser rallenta quando la finestra è coperta) né dall'orologio del portatile: se dice «non trovata», la LIM davvero non risponde |
+| Regia: «Orologio locale fuori di N s» | L'ora di Windows è lontana da quella di AWS | Non blocca nulla: i conti a schermo usano l'ora del server. Per sistemarlo: *Impostazioni → Data e ora → Sincronizza ora* |
+| LIM: «Rete assente · riconnessione» che lampeggia | Una singola richiesta lenta | Normale e ora tollerato: serve che due richieste di fila falliscano **e** che passino 4 s senza risposte perché compaia. Se resta fisso è un problema vero: vedi la riga sotto |
 | Regia: «Chiave admin mancante» / errore 401 | Chiave non incollata o sbagliata | Incollare la chiave (`new-session-aws.ps1 -CopyKey`); la LIM la riceve dalla regia |
 | Regia: backend rosso «non raggiungibile» | Rete, API URL sbagliato, stack non distribuito | Aprire `<ApiUrl>/s/<sid>/meta` nel browser; controllare la rete; piano B |
 | Errore `403 ORIGIN_DENIED` | Pagina aperta da un'origine non in CORS (es. IP in LAN, altro dominio) | Usare il dominio CloudFront; in locale aggiungere l'origine ad `ALLOWED_ORIGINS` |
 | `404 SESSION_NOT_FOUND` | Sid sbagliato o sessione scaduta (24 h) | Creare una sessione nuova con un sid nuovo |
+| La tela sparisce prima della fine | Si è entrati nella scena finale troppo presto: «Avanti» lì accorcia il TTL di ogni pixel | Regia → **Chiusura** → «Riavvia la dissolvenza» (60 s o 3 min): rimette in vita gli item non ancora scaduti con una nuova scadenza |
+| La tela **non** sparisce nella scena finale | La riscrittura dei TTL è fallita in parte (la fase avanza comunque, di proposito) | Stesso pulsante: «Riavvia la dissolvenza». Il contatore «item ancora vivi» in regia dice se sta funzionando |
+| Riquadro «Gli stessi numeri, letti da AWS» assente nella scena del costo | CloudWatch non risponde, permesso mancante, o la sessione è appena partita (i dati arrivano con 1–3 minuti di ritardo) | Non è un guasto: la scena regge da sola. In regia «Verifica il costo su AWS» dice il motivo. Permesso richiesto: `cloudwatch:GetMetricData` sul ruolo della Lambda |
 | `409 SESSION_EXISTS` | Il sid esiste già | Le sessioni non si sovrascrivono: usare un sid diverso |
 | Avanti «Verrà rifiutato…» / `INVALID_TRANSITION` | Dopo un salto visivo la LIM è più avanti della fase | Tornare con ← alla scena indicata dalla regia e riprendere da lì |
 | «Attendere i batch finali» (`ROUND_SETTLING`) | Si chiude la presentazione entro 2 s dalla fine del round | Aspettare 2 secondi e ripremere Avanti |
@@ -51,7 +56,9 @@ Senza regia: aggiungere `&mode=static` all'URL della LIM.
 | Telefoni lenti a entrare | Cold start o concorrenza Lambda bassa | Scaldare prima; verificare la quota di concorrenza |
 | QR non leggibile | Proiettore scuro, distanza | Leggere a voce l'URL corto (dominio CloudFront) o ingrandire la LIM |
 | Lo sciame non parte | Fase diversa da «Pixel Wall in corso» o tela già completa | Lo sciame funziona solo durante il gioco |
-| DynamoDB Local non parte | Docker Desktop spento | Avviare Docker Desktop; in alternativa `scripts/setup-local-windows.ps1 -Start` (Java portatile) |
+| DynamoDB Local non parte | Docker Desktop spento | Avviare Docker Desktop (solo sul branch `develop`: su `prod` gli emulatori non ci sono) |
+| `sam deploy`: la Lambda risponde «Cannot find module 'handler'» | Bundle non compilato o nome file sbagliato | `npm run build:backend` deve produrre `backend/dist/handler.js` (non `.cjs`); il template cerca `handler.handler` |
+| Build del frontend che fallisce con «VITE_API_BASE assente» | Manca `frontend/.env.<env>`, o contiene ancora i segnaposto dell'esempio | È voluto: `./scripts/deploy-aws.ps1` lo genera dagli Outputs dello stack. Non copiare a mano il file `.example` |
 | `aws` / `sam`: token scaduto | Sessione SSO scaduta | `aws sso login --profile live` |
 | `sam deploy`: il parametro SSM non esiste | Primo deploy senza segreto | Usare `deploy-aws.ps1` (lo crea) o crearlo a mano ([aws-setup.md §8](aws-setup.md#8-segreto-admin-in-ssm-parameter-store)) |
 | Frontend su CloudFront vecchio dopo il deploy | Cache | `deploy-aws.ps1` invalida `/*`; attendere 1–2 minuti o ricaricare con Ctrl+F5 |

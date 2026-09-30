@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
-  import { PHASES, type Meta, type Phase, type RawPixel } from '../../../shared/types.js';
+  import { PHASES, type AwsUsageResponse, type Meta, type Phase, type RawPixel } from '../../../shared/types.js';
   import { LOGO_CELLS } from '../../../shared/logo.js';
   import { ApiFailure } from '../shared/api';
   import { api } from '../shared/runtime';
@@ -9,7 +9,7 @@
   import { Session } from '../shared/session.svelte';
   import BoardView from '../shared/BoardView.svelte';
   import type { Board } from '../shared/board';
-  import { message, number, time } from '../shared/ui';
+  import { isBot, message, number, time, ttlTime, usd } from '../shared/ui';
   import { plannedStart, plannedTotal, scenes, type Scene, type Speaker } from '../stage/slides';
   import { Swarm } from './swarm.svelte';
 
@@ -27,7 +27,17 @@
   const channel = openChannel(onMessage);
   const swarm = new Swarm(session, m => channel.send(m));
   const meta = $derived(session.meta);
-  const linked = $derived(session.now - stageSeen < 5000);
+  /**
+   * Liveness of the LIM, measured on the *local* clock (session.wall), never on the server-corrected one:
+   * stageSeen comes from Date.now() in this same window, and mixing the two made a perfectly healthy LIM
+   * look dead whenever the laptop clock was a few seconds behind AWS.
+   *
+   * The threshold is generous on purpose. The LIM can be a window the operating system considers hidden
+   * (fullscreen on the projector, covered by this panel), and browsers throttle timers there — so we do not
+   * rely on the LIM's own heartbeat: PING below asks it to speak, and a BroadcastChannel message is
+   * delivered and answered even by a throttled page.
+   */
+  const linked = $derived(session.wall - stageSeen < 6000);
   const scene = $derived(stage ? scenes[stage.scene] : undefined);
   const lit = $derived(session.lit);
   // api.latency is plain data: re-read it on the session clock tick.
@@ -148,10 +158,14 @@
   const toLive = () => { send({ t: 'navigate', params: { mode: null } }); note('LIM di nuovo sulla sessione live.'); };
   const fullscreen = () => { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen().catch(() => note('Schermo intero non disponibile.', true)); };
 
+  const PING_MS = 1500;
   onMount(() => {
     session.start({ canvasMs: 500 });
     channel.send({ t: 'hello' });
     if (api.admin) channel.send({ t: 'key', key: api.admin });
+    // This window has focus, so its timers run at full rate: it is the one that keeps the link measurable.
+    const ping = setInterval(() => channel.send({ t: 'hello' }), PING_MS);
+    return () => clearInterval(ping);
   });
   $effect(() => { if (board) { board.ghost = .35; board.ghostCells = [...LOGO_CELLS]; board.draw(); } });
   onDestroy(() => { session.stop(); swarm.stop(); channel.close(); clearTimeout(disarm); });
@@ -172,6 +186,36 @@
   const showPixel = $derived(scene?.id === 'pixel' || meta?.phase === 'pixel');
   const showHotkey = $derived(scene?.id === 'hotkey' || meta?.phase === 'hotkey_ready' || meta?.phase === 'hotkey_running');
   const nextLabel = (s: Scene | undefined, step: string) => s && s.steps.length > 1 ? `${s.title} — ${step}` : s?.title ?? '';
+  // The swarm joins as ordinary players: keep them out of every number the audience is told.
+  const people = $derived(session.players.filter(p => !isBot(p.nickname)).length);
+  const virtual = $derived(session.players.length - people);
+  /**
+   * A laptop clock more than a few seconds away from the server's used to be invisible and break the link
+   * indicator. It no longer does, but it still skews every «tempo rimanente» on screen: say so here.
+   */
+  const skewMs = $derived((void session.now, Math.abs(api.offset)));
+  /** Green only while the backend is actually accepting the key, not merely because one was pasted. */
+  const keyOk = $derived((void session.now, config.mock || (!!api.admin && !api.adminRejected)));
+  const closing = $derived(scene?.id === 'end' || meta?.phase === 'end');
+  const canvasTtlMs = $derived(meta ? meta.canvasExpiresAt * 1000 - session.now : 0);
+
+  /** Safety net for the finale: re-arms the short TTL from now, e.g. after arriving at the last scene early. */
+  const dissolveAgain = (endTtlMs: number) => action('/admin/dissolve', { endTtlMs }, `Dissolvenza riavviata su ${Math.round(endTtlMs / 1000)} s.`);
+
+  let awsCheck = $state<AwsUsageResponse>();
+  let checking = $state(false);
+  /** Reads the same quantities back from CloudWatch, as a check on the receipt before it goes on screen. */
+  async function verifyCost() {
+    checking = true;
+    try {
+      awsCheck = await api.call<AwsUsageResponse>('/admin/aws');
+      const u = awsCheck.usage;
+      note(u
+        ? `AWS: ${number(u.wruTable)} WRU tabella · ${number(Object.values(u.wruGsi).reduce((a, b) => a + b, 0))} WRU GSI · ${number(u.apiRequests)} richieste · ${awsCheck.estimatedCost == null ? 'n/d' : usd(awsCheck.estimatedCost)} (ritardo ~${u.staleMs === null ? '?' : Math.round(u.staleMs / 1000)} s)`
+        : `Verifica AWS non disponibile (${awsCheck.reason ?? 'sconosciuto'}).`, !u);
+    } catch (e) { note(`Verifica AWS non riuscita: ${message(e)}`, true); }
+    finally { checking = false; }
+  }
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -185,7 +229,8 @@
     <ul class="status" aria-label="Stato dei collegamenti">
       <li class:ok={linked} class:bad={!linked}><span class="dot"></span>{linked ? `LIM collegata${stage?.mode === 'static' ? ' · statica' : ''}` : 'LIM non trovata'}</li>
       <li class:ok={session.online} class:bad={!session.online} title={config.api}><span class="dot"></span>{backend.label}{session.online ? ` · ${latency} ms` : ' · non raggiungibile'}</li>
-      <li class:ok={!!api.admin || config.mock} class:bad={!api.admin && !config.mock}><span class="dot"></span>{api.admin || config.mock ? 'Chiave admin ok' : 'Chiave admin mancante'}</li>
+      <li class:ok={keyOk} class:bad={!keyOk}><span class="dot"></span>{keyOk ? 'Chiave admin ok' : api.admin ? 'Chiave admin rifiutata' : 'Chiave admin mancante'}</li>
+      {#if skewMs > 5000}<li class="bad" title="Sincronizza l'orologio di Windows: i tempi mostrati usano l'ora del server"><span class="dot"></span>Orologio locale fuori di {Math.round(skewMs / 1000)} s</li>{/if}
     </ul>
   </header>
 
@@ -269,7 +314,7 @@
         <div>
           <p class="eyebrow">Pixel Wall</p>
           <p class="big-num display">{number(lit)}<span class="muted"> / {LOGO_CELLS.length}</span></p>
-          <p class="muted">{number(session.stats?.pixelConflicts ?? 0)} conflitti gestiti · {number(session.players.length)} giocatori</p>
+          <p class="muted">{number(session.stats?.pixelConflicts ?? 0)} conflitti gestiti · {number(people)} in sala{virtual ? ` + ${number(virtual)} virtuali` : ''}</p>
         </div>
         <div class="swarm">
           <label class="eyebrow" for="w">Sciame · {swarm.workers} scrittori</label>
@@ -301,6 +346,20 @@
     </section>
   {/if}
 
+  {#if closing}
+    <section class="card closing">
+      <p class="eyebrow">Chiusura · TTL della tela</p>
+      <p class="big-num display" class:over={canvasTtlMs <= 0}>{canvasTtlMs <= 0 ? '00:00:00' : ttlTime(canvasTtlMs)}</p>
+      <p class="muted">{number(lit)} item ancora vivi su {LOGO_CELLS.length}. «Avanti» sulla scena finale ha accorciato <span class="mono">expiresAt</span> di ogni pixel, distribuito su {Math.round((meta?.endTtlMs ?? 0) / 1000)} s: i pallini spariscono da soli mentre parli.</p>
+      <p class="fine muted">AWS cancella fisicamente gli item più tardi (asincrono, gratuito). Qui e sulla LIM sono già ignorati: è lo stesso filtro che il backend applica a ogni lettura.</p>
+      <div class="row wrap">
+        <button class="btn small" class:armed={armed === 'ttl60'} onclick={() => confirm('ttl60', () => dissolveAgain(60000))} disabled={!!working || meta?.phase !== 'end'}>{armed === 'ttl60' ? 'Conferma: riparti da 60 s' : 'Riavvia la dissolvenza · 60 s'}</button>
+        <button class="btn small" class:armed={armed === 'ttl180'} onclick={() => confirm('ttl180', () => dissolveAgain(180000))} disabled={!!working || meta?.phase !== 'end'}>{armed === 'ttl180' ? 'Conferma: 3 minuti' : 'Più lenta · 3 min'}</button>
+      </div>
+      <p class="fine muted">Serve se sei arrivato qui in anticipo o se la riscrittura del TTL è riuscita solo in parte: rimette in vita gli item non ancora scaduti con una nuova scadenza.</p>
+    </section>
+  {/if}
+
   <section class="card emergency">
     <p class="eyebrow">Emergenza · sempre disponibile</p>
     <div class="grid">
@@ -323,6 +382,7 @@
       <button class="btn small" class:on={stage?.meter} onclick={() => send({ t: 'toggle', what: 'meter' })}>Tassametro</button>
       <button class="btn small" onclick={bots} disabled={config.static}>Bot runner: {meta?.botsEnabled ? 'on' : 'off'}</button>
       <button class="btn small" onclick={fullscreen}>Regia a schermo intero</button>
+      <button class="btn small" onclick={verifyCost} disabled={checking || config.static || config.mock || !api.admin}>{checking ? 'Leggo CloudWatch…' : 'Verifica il costo su AWS'}</button>
     </div>
     <div class="row wrap">
       <button class="btn small danger" class:armed={armed === 'reload'} onclick={() => confirm('reload', () => send({ t: 'reload' }))} disabled={!linked}>{armed === 'reload' ? 'Conferma ricarica' : 'Ricarica LIM'}</button>
@@ -425,6 +485,9 @@
   .mini { aspect-ratio: 16 / 9; background: var(--board); border-radius: 14px; padding: 6px; margin-top: 12px; }
   .big { min-height: 64px; font-size: 20px; width: 100%; }
   .fine { font-size: 13px; margin: 8px 0 0; }
+  .closing { border-color: var(--accent); }
+  .closing .big-num { color: var(--accent); font-size: 40px; }
+  .closing .big-num.over { color: var(--muted); }
   .emergency { border-color: var(--red); }
   .emergency .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .btn.on { background: var(--ink); color: var(--paper); }

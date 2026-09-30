@@ -2,16 +2,24 @@
   import type { Api } from '../shared/api';
   import type { Session } from '../shared/session.svelte';
   import { number } from '../shared/ui';
-  let { api, session, onclose }: { api: Api; session: Session; onclose: () => void } = $props();
-  // api.inspect is plain data refreshed by every admin call: re-read it on the session clock.
-  const item = $derived((void session.now, api.inspect));
+  let { api, session, prefer = [], onclose }: { api: Api; session: Session; prefer?: string[]; onclose: () => void } = $props();
+  /**
+   * api.inspect(s) is plain data refreshed by every admin call: re-read it on the session clock.
+   * `prefer` lets the scene ask for the operation that matches what is being said (an index Query during
+   * HOT KEY, the canvas delta during the Pixel Wall) instead of whichever poll answered last.
+   */
+  const item = $derived.by(() => {
+    void session.now;
+    for (const path of prefer) { const measured = api.inspects[path]; if (measured && Date.now() - measured.at < 15000) return measured; }
+    return api.inspect;
+  });
   const ops = $derived(item ? (item.details.operations.length ? item.details.operations : [item.details]) : []);
   const ddb = $derived(item ? item.details.ddbMs : 0);
 </script>
 
 <aside class="xray">
   <header>
-    <div><p class="eyebrow">X-Ray · non è il servizio AWS X-Ray</p><h3 class="display">Dentro l’ultima richiesta</h3></div>
+    <div><p class="eyebrow">X-Ray · non è il servizio AWS X-Ray</p><h3 class="display">Dentro una richiesta vera</h3></div>
     <button class="btn small" onclick={onclose}>Chiudi · I</button>
   </header>
   {#if !item}

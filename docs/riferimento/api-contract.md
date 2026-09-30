@@ -21,13 +21,15 @@ Il pid è una credenziale bearer: join, il proprietario e lo stage autenticato l
 | POST `/tap` | `{pid,delta,seq,roundId}` | `{score,acceptedSeq,duplicate}` |
 | GET `/leaderboard` | `limit=1..100`, default 10 | `{top:[{nickname,team,score,rank}],provisional,roundId}` |
 | GET `/rank/{pid}` | proprietario/admin | `{rank,total,score,provisional}` |
-| GET `/stats` | admin | `StatsResponse`: campi Stats, prices, estimatedCost, costBasis |
+| GET `/stats` | admin | `StatsResponse`: campi Stats, prices, estimatedCost, costBasis; 404 `STATS_NOT_FOUND` se il contatore è scaduto |
+| GET `/admin/aws` | admin | `AwsUsageResponse`: le stesse quantità lette da CloudWatch, `{available:false,reason}` se non disponibili |
 | POST `/admin/phase` | `{phase,expectedVersion,durationMs?}` | META aggiornato |
 | POST `/admin/hide` | `{hidden:boolean}` | META aggiornato |
 | POST `/admin/clear` | `{x1,y1,x2,y2}` inclusivi | `{deleted,canvasRevision}` |
 | POST `/admin/ban` | `{pid}` | `{ok:true}` |
 | POST `/admin/reset` | configurazione SessionConfig opzionale | META iniziale; solo sid nuovo, 409 se esiste |
 | POST `/admin/bots` | `{enabled:boolean}` | META aggiornato |
+| POST `/admin/dissolve` | `{endTtlMs?}` 5000–3600000 | META aggiornato + `{dissolving:n}`; solo in fase `end`, idempotente |
 
 Errori principali: 400 input (anche `NOT_IN_LOGO`, `WRONG_COLOR`), 401 admin/proprietario non autorizzato, 403 bannato, 404 sessione/item assente o scaduto, 409 fase/versione/sequenza non valida o cella già accesa (`PIXEL_TAKEN`), 429 cooldown/rate limit, 503 conflitto transitorio o backend non disponibile. Per 429 usare retryInMs; per 503 backoff con jitter. Non riprovare automaticamente input 400/403.
 
@@ -37,7 +39,17 @@ Transizioni sequenziali: lobby → pixel → pixel_frozen → talk → hotkey_re
 
 Pixel e HOT KEY scadono secondo il tempo server, anche senza stage connesso; la prima richiesta successiva materializza pixel_frozen/hotkey_end. Non è un timer in background. Passare a hotkey_end prima del termine tronca il round; end è ammesso solo dopo la finestra finale di tap. `teamsRevealed` diventa true entrando in talk. Il telefono non mostra team prima di allora, pur avendolo ricevuto al join.
 
-Default: 32×18 (le dimensioni del logo, anche massime), cooldown 500 ms, pixel 90000 ms, round 15000 ms, grace tap 2000 ms. Prompt configurabile: «Accendete il logo». Nickname non univoci. Una sola partita HOT KEY per sid. Date in ms, TTL in secondi. La scadenza sessione è fissata alla creazione a +24h (non ricalcolata alla fine per evitare un aggiornamento non atomico di tutti gli item); l'app filtra subito gli scaduti, AWS li elimina asincronamente.
+Default: 32×18 (le dimensioni del logo, anche massime), cooldown 500 ms, pixel 90000 ms, round 15000 ms, grace tap 2000 ms, `endTtlMs` 60000 ms. Prompt configurabile: «Accendete il logo». Nickname non univoci. Una sola partita HOT KEY per sid. Date in ms, TTL in secondi.
+
+### Due TTL, non uno
+
+`expiresAt` della sessione è fissato alla creazione a +24 h e non cambia mai: META, PLAYER e STATS sopravvivono al talk. `canvasExpiresAt` è il TTL degli item della tela, inizialmente uguale a quello della sessione.
+
+Entrare in fase `end` è l'unico gesto che lo accorcia: il backend porta `canvasExpiresAt` a `now + endTtlMs`, incrementa `canvasRevision` e riscrive ogni item della tela con un `expiresAt` **individuale**, distribuito uniformemente sulla finestra nell'ordine in cui è stato acceso (`updatedAt` crescente). `updatedAt` non viene toccato: la riscrittura non deve apparire come una nuova accensione nel feed ByTime né far ricomparire i pallini con l'animazione di ingresso.
+
+Conseguenza voluta: durante la scena finale la tela si dissolve un item per volta, perché ogni lettore — backend e pagine — filtra già gli scaduti. `/canvas` restituisce `e` (l'`expiresAt` di quell'item) così che la LIM e i telefoni applichino la scadenza fra un polling e l'altro invece di aspettarlo. La cancellazione fisica da parte di AWS resta asincrona e gratuita: quello che si vede è la scadenza logica, ed è così che va raccontata.
+
+Se la riscrittura fallisce in parte, la fase avanza comunque (il finale non può diventare un errore) e `POST /admin/dissolve` la riapplica, anche con una finestra diversa.
 
 Persistenza telefono: chiave localStorage per sid contenente pid; al reload GET player con x-player-id e GET meta. 404: eliminare il pid salvato e proporre join se ancora aperto. Compensare l'orologio dal punto medio richiesta/risposta e serverTime.
 
@@ -46,6 +58,8 @@ Persistenza telefono: chiave localStorage per sid contenente pid; al reload GET 
 La tela nasce nera e nasconde un'immagine: una reinterpretazione pixel-art dell'icona DynamoDB definita in `shared/logo.ts` (252 celle su 32×18, palette di 8 colori `LOGO_PALETTE`, esportata anche come `PALETTE`). Il colore di una cella è deciso dall'immagine: `c` è facoltativo e, se presente, deve coincidere (400 `WRONG_COLOR`); una cella fuori dal logo restituisce 400 `NOT_IN_LOGO`. Il telefono sceglie a caso una cella ancora spenta e la accende; PK/SK riflettono la posizione (`CANVAS#{sid}` / `PX#xxx#yyy`).
 
 Vince il primo: il Put della cella ha condizione `attribute_not_exists(PK) OR deleted = true`. Se due scrittori accendono la stessa cella, il secondo riceve 409 `PIXEL_TAKEN`, nessun lock. Cooldown e pixel vengono scritti in una transazione insieme al conteggio STATS e a un controllo META: se la cella è già presa la transazione si annulla e il cooldown non viene consumato, quindi il client può ritentare subito un'altra cella. Ogni rifiuto incrementa `STATS.pixelConflicts` (campo facoltativo: sessioni create prima non lo hanno). Una cella cancellata dalla moderazione (tombstone) può essere riaccesa.
+
+Ogni pixel porta `e`: l'`expiresAt` del suo item, in secondi epoch del **server**. Confrontarlo con l'orologio corretto (punto medio + `serverTime`), mai con `Date.now()` locale. Un pixel il cui `e` è passato va rimosso dalla vista senza attendere il polling; un pixel senza `e` (modalità statica, dati d'esempio) non scade mai da solo. `e` può cambiare senza che cambi `t`: in quel caso aggiornare solo la scadenza, non l'animazione.
 
 Conservare `cursor` restituito dal server, non l'ora del telefono. L'indice ByTime legge con overlap 2s; applicare un pixel solo se t è maggiore di quello già noto. `deleted:true` è una tombstone: rimuovere il colore e conservare t. I clear incrementano canvasRevision. Revision diversa, cursore troppo vecchio (>30s) o futuro producono uno snapshot `full:true`. Richiedere comunque `/canvas` ogni 15s e a ogni riconnessione: un GSI non garantisce un limite massimo di ritardo. Uno snapshot sostituisce l'intera tela. Evitare richieste canvas sovrapposte per non applicare snapshot fuori ordine. Quando hidden=true, svuotare la visualizzazione; le letture pubbliche restituiscono zero pixel, l'admin può ancora leggere per moderare.
 
