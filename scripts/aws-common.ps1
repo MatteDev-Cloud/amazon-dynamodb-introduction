@@ -28,7 +28,7 @@ function Assert-Tools([string[]]$tools) {
 
 function Assert-Identity([string]$awsProfile, [string]$region) {
   $identity = Get-NativeOutput { aws sts get-caller-identity --profile $awsProfile --region $region --output json }
-  if (-not $identity.Ok) { throw "Credenziali AWS non valide per il profilo '$awsProfile'. Esegui: aws sso login --profile $awsProfile" }
+  if (-not $identity.Ok) { throw "Credenziali AWS non valide per il profilo '$awsProfile'. Esegui: aws login --profile $awsProfile (oppure aws sso login per Identity Center)" }
   $account = ($identity.Output | ConvertFrom-Json).Account
   Write-Host "Account $account · profilo $awsProfile · regione $region"
 }

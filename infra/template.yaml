@@ -10,6 +10,11 @@ Parameters:
     Type: String
     Default: ''
     Description: Optional email for monthly actual-cost budget notifications
+  BudgetAmount:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    Description: Monthly budget threshold in USD
 Conditions:
   IsLive: !Equals [!Ref Environment, live]
   HasBudgetEmail: !Not [!Equals [!Ref BudgetEmail, '']]
@@ -185,7 +190,7 @@ Resources:
         BudgetName: !Sub '${AWS::StackName}-monthly'
         BudgetType: COST
         TimeUnit: MONTHLY
-        BudgetLimit: {Amount: !If [IsLive, 2, 1], Unit: USD}
+        BudgetLimit: {Amount: !Ref BudgetAmount, Unit: USD}
       NotificationsWithSubscribers:
         - Notification: {NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 50, ThresholdType: PERCENTAGE}
           Subscribers: [{SubscriptionType: EMAIL, Address: !Ref BudgetEmail}]

@@ -3,13 +3,14 @@
   Deploy completo su AWS (branch prod): segreto SSM, backend (SAM), frontend su S3 + CloudFront.
 .EXAMPLE
   ./scripts/deploy-aws.ps1 -Environment dev
-  ./scripts/deploy-aws.ps1 -Environment live -AwsProfile live -BudgetEmail nome@esempio.it
+  ./scripts/deploy-aws.ps1 -Environment live -AwsProfile live -BudgetEmail nome@esempio.it -BudgetAmount 5
 #>
 param(
   [ValidateSet('dev', 'live')][string]$Environment = 'dev',
   [Alias('Profile')][string]$AwsProfile = $Environment,
   [string]$Region = 'eu-central-1',
   [string]$BudgetEmail = '',
+  [ValidateRange(1, 1000000)][int]$BudgetAmount = 2,
   [switch]$SkipFrontend
 )
 . (Join-Path $PSScriptRoot 'aws-common.ps1')
@@ -50,7 +51,7 @@ Invoke-Native { npm run build:backend } 'Build del backend non riuscita'
 if (-not (Test-Path (Join-Path $root 'backend/dist/handler.js'))) { throw 'backend/dist/handler.js assente: il template SAM cerca handler.handler' }
 
 Step "sam deploy ($stack) · rivedi il change set e conferma"
-$overrides = @("Environment=$Environment")
+$overrides = @("Environment=$Environment", "BudgetAmount=$BudgetAmount")
 if ($BudgetEmail) { $overrides += "BudgetEmail=$BudgetEmail" }
 Push-Location (Join-Path $root 'infra')
 try {
