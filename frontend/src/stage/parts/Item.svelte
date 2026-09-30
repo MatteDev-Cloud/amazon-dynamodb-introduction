@@ -48,8 +48,10 @@
   .hl { background: linear-gradient(90deg, #fff3b8, transparent 80%); margin: 0 -32px; padding-left: 32px; padding-right: 32px; }
   .note { grid-column: 2; margin: 6px 0 0; font: italic 400 20px/1.3 var(--display); color: var(--ink-2); }
   .pk .note { color: var(--accent); } .sk .note { color: var(--blue); }
-  .link { all: unset; cursor: pointer; display: inline-flex; gap: 14px; align-items: baseline; border-bottom: 2px solid var(--accent); }
-  .link .hint { font: 600 16px var(--sans); color: #fff; background: var(--accent); padding: 3px 12px; border-radius: 999px; animation: nudge 1.6s var(--ease-in-out) infinite; }
+  /* Only the value is underlined; the pill is centred on it instead of sitting on the baseline and the underline. */
+  .link { all: unset; cursor: pointer; display: inline-flex; gap: 14px; align-items: center; }
+  .link .t-s { border-bottom: 2px solid var(--accent); }
+  .link .hint { font: 600 16px/1.25 var(--sans); color: #fff; background: var(--accent); padding: 3px 12px; border-radius: 999px; animation: nudge 1.6s var(--ease-in-out) infinite; }
   @keyframes nudge { 50% { transform: translateX(6px); } }
   .compact { font-size: 19px; padding: 20px 26px 16px; box-shadow: 7px 7px 0 var(--ink); }
   .compact .row { grid-template-columns: 130px 1fr; padding: 7px 0; }
