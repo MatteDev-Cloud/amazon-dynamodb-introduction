@@ -14,7 +14,7 @@ flowchart TB
   end
   subgraph AWS["AWS · eu-central-1"]
     cf[CloudFront + S3 privato<br/>OAC, HTTPS]
-    api[API Gateway HTTP API<br/>CORS, throttling 300 rps]
+    api[API Gateway HTTP API<br/>CORS, throttling 1000 rps]
     fn[Lambda arm64 256 MB<br/>handler.ts → app.ts]
     ddb[(DynamoDB DynamoLive<br/>PK/SK · GSI ByTime, ByScore · TTL)]
     ssm[SSM Parameter Store<br/>/dynamolive/env/admin-key]
@@ -52,14 +52,14 @@ Una soluzione con interfacce e classi "MockService/AwsService" separate sarebbe 
 
 ## Modello dati (single-table)
 
-Tabella con chiave `PK` (partition) + `SK` (sort), TTL su `expiresAt` (epoch secondi, 24 h dopo la creazione della sessione).
+Tabella con chiave `PK` (partition) + `SK` (sort), TTL sull'attributo `expiresAt` (epoch secondi). Il TTL non è una proprietà della tabella ma **di ogni item**, e la presentazione si appoggia proprio a questo: gli item di sessione vivono 24 h, quelli della tela scadono uno per volta durante la scena finale (vedi *Chiusura*).
 
 | Entità | PK | SK | Attributi principali |
 | --- | --- | --- | --- |
 | Stato sessione | `SESSION#<sid>` | `META` | `phase`, `version`, timer, `roundId`, flag |
 | Contatori | `SESSION#<sid>` | `STATS` | giocatori, pixel, conflitti, tap per squadra, capacità consumata |
 | Giocatore | `SESSION#<sid>` | `PLAYER#<pid>` | `nickname`, `team`, `score`, `lastSeq`, `lb`, `lastPixelAt` |
-| Pixel | `CANVAS#<sid>` | `PX#<xxx>#<yyy>` | `color`, `by`, `byId`, `cv`, `updatedAt` |
+| Pixel | `CANVAS#<sid>` | `PX#<xxx>#<yyy>` | `color`, `by`, `byId`, `cv`, `updatedAt`, `expiresAt` individuale |
 
 | Indice | Chiavi | Serve per |
 | --- | --- | --- |
@@ -76,21 +76,26 @@ Le coordinate hanno gli zeri (`PX#012#005`) perché le sort key si ordinano come
 
 **Fasi.** `lobby → pixel → pixel_frozen → talk → hotkey_ready → hotkey_running → hotkey_end → end`, solo in avanti, con controllo di versione (optimistic locking). Le scene della LIM possono andare avanti e indietro, la fase del database no.
 
-**Sincronizzazione.** Nessun WebSocket: polling (META 1 s, tela 0,4–0,5 s con delta da `ByTime`, snapshot completo ogni 15 s). Più semplice da spiegare, da far funzionare dietro qualsiasi rete e da stimare nei costi.
+**Chiusura (TTL).** Entrare in fase `end` accorcia `META.canvasExpiresAt` a `now + endTtlMs` (60 s di default) e riscrive ogni item della tela con un `expiresAt` **proprio**, distribuito uniformemente sulla finestra nell'ordine in cui il pubblico ha acceso le celle. `updatedAt` resta invariato, così la riscrittura non appare come una nuova accensione nel feed `ByTime`. Da lì in poi il filtro che backend e pagine applicavano da sempre («ignora gli item scaduti») fa sparire i pallini uno alla volta mentre lo speaker parla. La cancellazione fisica da parte di AWS resta asincrona e gratuita: quello che si vede è la scadenza *logica*, e va detto. Se la riscrittura riesce solo in parte la fase avanza lo stesso e la regia può riapplicarla con `POST /admin/dissolve`.
+
+**Sincronizzazione.** Nessun WebSocket: polling (META 1 s, tela 0,4–0,5 s con delta da `ByTime`, snapshot completo ogni 15 s). Più semplice da spiegare, da far funzionare dietro qualsiasi rete e da stimare nei costi. Ogni pixel viaggia con il proprio `expiresAt`, così la dissolvenza finale è fluida fra un polling e l'altro invece di procedere a scatti.
+
+**Orologi.** Il client corregge il proprio orologio dal punto medio richiesta/risposta e da `serverTime`. Due orologi quindi convivono in pagina: quello **corretto** per tutto ciò che il backend timbra (fine fase, fine round, TTL) e quello **locale** per ciò che si misura dentro il browser (da quanto tace l'altra finestra). Confonderli è un errore già costato una regressione: la regia dava la LIM per scollegata solo perché il portatile era indietro di qualche secondo rispetto ad AWS.
 
 ## Sicurezza
 
 - **Chiave admin**: su AWS è un `SecureString` in SSM, letta dalla Lambda al cold start. Non è nel codice, non è nel bundle del frontend, non è una variabile della Lambda. Il presentatore la incolla in regia; resta in `sessionStorage` di quella scheda.
 - **Giocatori**: il telefono conosce solo il proprio `pid`, inviato come `x-player-id` per leggere i propri dati.
 - **CORS**: API Gateway e l'app accettano solo le origini configurate (in `live` solo il dominio CloudFront).
-- **Minimo privilegio**: il ruolo della Lambda può solo `GetItem/PutItem/UpdateItem/DeleteItem/Query/ConditionCheckItem` sulla tabella e i suoi indici, e leggere un solo parametro SSM.
+- **Minimo privilegio**: il ruolo della Lambda può solo `GetItem/PutItem/UpdateItem/DeleteItem/Query/ConditionCheckItem` sulla tabella e i suoi indici, leggere un solo parametro SSM e `cloudwatch:GetMetricData` (sola lettura, senza condizioni per risorsa: l'azione non le supporta).
 - **Input**: nickname validati e filtrati, corpo max 16 KB, sid e pid con formato fisso, nessun dettaglio AWS negli errori o nei log.
 
 ## Compromessi dichiarati
 
 - `STATS` è un'unica hot key scelta apposta per la didattica: alla scala del talk va bene, a scala grande servirebbe *write sharding* o un'aggregazione asincrona (Streams).
 - La classifica durante il round legge il GSI (eventualmente consistente); a round finito si rilegge la tabella con lettura forte.
-- Il tassametro è una **stima a listino** dalla capacità restituita da DynamoDB, non una fattura.
+- Il tassametro è una **stima a listino**: capacità realmente consumata (`ReturnConsumedCapacity`) moltiplicata per i prezzi pubblicati, non una fattura. Le quantità sono misurate, il prezzo è di listino, e mancano free tier, crediti e imposte.
+- Il contatore dell'app è bufferizzato per container Lambda (una scrittura in più per richiesta costerebbe più della richiesta stessa): un container che non riceve altre richieste perde quel poco che non aveva ancora scaricato, quindi il totale dell'app tende a essere **leggermente inferiore** al vero. `GET /admin/aws` rilegge le stesse grandezze da CloudWatch come controllo — misurate da AWS, con 1–3 minuti di ritardo e riferite alla tabella e alla funzione, non alla singola sessione.
 - Nessun WebSocket, nessuna autenticazione utente: fuori scopo per una sessione di 15 minuti con dati che scadono in 24 h.
 
 ## Branch e ambienti

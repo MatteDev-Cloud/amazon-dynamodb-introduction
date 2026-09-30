@@ -21,5 +21,6 @@ export const handler: APIGatewayProxyHandlerV2 = async event => {
   let handle: Awaited<ReturnType<typeof ready>>;
   try { handle=await ready(); }
   catch { return json(503,{error:'CONFIG_UNAVAILABLE',message:'Backend configuration not available; retry shortly',retryInMs:1000}); }
-  return handle({method:event.requestContext.http.method,path:event.rawPath,headers:event.headers,query:event.queryStringParameters??{},body});
+  // apiId comes from the event, not from an environment variable: see infra/template.yaml.
+  return handle({method:event.requestContext.http.method,path:event.rawPath,headers:event.headers,query:event.queryStringParameters??{},body,apiId:event.requestContext.apiId});
 };

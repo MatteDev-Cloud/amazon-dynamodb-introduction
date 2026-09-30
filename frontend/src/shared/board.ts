@@ -7,12 +7,15 @@ import { LOGO_H, LOGO_W } from '../../../shared/logo.js';
  */
 export interface BoardOptions { glow?: boolean; padding?: number }
 type Anim = { start: number; delay: number };
-const POP_MS = 560, FLASH_MS = 900, SHIMMER_MS = 1600;
+const POP_MS = 560, FADE_MS = 900, FLASH_MS = 900, SHIMMER_MS = 1600;
 
 export class Board {
   w = LOGO_W; h = LOGO_H;
   pixels = new Map<string, Pixel>();
   private pops = new Map<string, Anim>();
+  /** Cells that were lit and are not any more (TTL expired, or cleared): they fade out instead of blinking off. */
+  private fades = new Map<string, { start: number; pixel: Pixel }>();
+  private shown = new Set<string>();
   private flashes = new Map<string, { start: number; color: string }>();
   marked = new Set<string>();
   selected?: { x: number; y: number };
@@ -52,13 +55,28 @@ export class Board {
 
   /** Replace pixels; `fresh` ones animate in, staggered by their server timestamps over `spreadMs`. */
   update(pixels: Map<string, Pixel>, fresh: Pixel[] = [], spreadMs = 450) {
+    // CanvasSync mutates one Map in place, so the previous contents are remembered here, not compared by reference.
+    const now = performance.now(), visible = new Set<string>();
+    for (const [key, pixel] of pixels) if (!pixel.deleted) visible.add(key);
+    for (const key of this.shown) {
+      if (visible.has(key)) continue;
+      const pixel = this.fadeSource(key);
+      if (pixel) this.fades.set(key, { start: now, pixel });
+    }
+    for (const key of visible) this.fades.delete(key);
+    this.shown = visible;
     this.pixels = pixels;
     if (fresh.length) {
       const sorted = [...fresh].sort((a, b) => a.t - b.t), min = sorted[0]!.t, span = Math.max(1, sorted.at(-1)!.t - min);
-      const now = performance.now();
       for (const p of sorted) this.pops.set(`${p.x},${p.y}`, { start: now, delay: fresh.length === 1 ? 0 : (p.t - min) / span * spreadMs });
     }
     this.kick();
+  }
+  /** Last known appearance of a cell that has just gone, so it can still be drawn while it fades. */
+  private fadeSource(key: string): Pixel | undefined {
+    const current = this.pixels.get(key);
+    if (current) return current.deleted ? { ...current, deleted: false } : current;
+    return this.fades.get(key)?.pixel;
   }
   flash(x: number, y: number, color = '#FF5A4E') { this.flashes.set(`${x},${y}`, { start: performance.now(), color }); this.kick(); }
   shimmer() { this.shimmerAt = performance.now(); this.kick(); }
@@ -100,6 +118,19 @@ export class Board {
         ctx.strokeStyle = PALETTE[g.c]!; ctx.lineWidth = Math.max(1, cell * .06);
         ctx.beginPath(); ctx.arc(cx(g.x), cy(g.y), cell * .32, 0, Math.PI * 2); ctx.stroke();
       }
+      ctx.globalAlpha = 1;
+    }
+    for (const [key, fade] of this.fades) {
+      const t = (now - fade.start) / FADE_MS;
+      if (t >= 1) { this.fades.delete(key); continue; }
+      animating = true;
+      const p = fade.pixel, color = PALETTE[p.c] ?? '#FFFFFF', r = cell * .42 * (1 - t * t);
+      ctx.globalAlpha = 1 - t;
+      if (this.options.glow) { ctx.shadowColor = color; ctx.shadowBlur = cell * .45 * (1 - t); }
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(cx(p.x), cy(p.y), Math.max(0, r), 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = color; ctx.lineWidth = Math.max(1, cell * .05);
+      ctx.beginPath(); ctx.arc(cx(p.x), cy(p.y), cell * (.42 + t * .5), 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
     }
     const shimmer = this.shimmerAt ? (now - this.shimmerAt) / SHIMMER_MS : -1;

@@ -5,6 +5,7 @@
   import { api } from '../shared/runtime';
   import { adminKey, config, navigate, regiaUrl, scope } from '../shared/config';
   import { openChannel, type Message, type StageState } from '../shared/channel';
+  import { isBot } from '../shared/ui';
   import { Session } from '../shared/session.svelte';
   import { scenes } from './slides';
   import { sceneIn, sceneOut } from './motion';
@@ -42,7 +43,20 @@
   let conflicts = $state<{ x: number; y: number; id: number }[]>([]);
 
   const scene = $derived(scenes[index]!);
-  const regiaOnline = $derived(session.now - regiaSeen < 6000);
+  /**
+   * Is the Regia there? Measured on the local clock (session.wall), never on the server-corrected one:
+   * regiaSeen is a Date.now() from this window. The Regia pings every 1.5 s, so 6 s of silence really means
+   * silence — which is what gates showing an error line to the audience.
+   */
+  const regiaOnline = $derived(session.wall - regiaSeen < 6000);
+  /**
+   * Which measured request the X-Ray should open on. Without this it shows whichever poll happened to
+   * finish last, so the panel would read «GET /stats» exactly when the story is about an index.
+   */
+  const xrayPrefer = $derived(
+    session.meta?.phase.startsWith('hotkey') ? ['/leaderboard', '/stats']
+    : scene.id === 'pixel' ? ['/canvas/changes', '/canvas']
+    : scene.id === 'lobby' ? ['/players'] : []);
   const Current = $derived(components[scene.id as keyof typeof components]);
 
   const channel = openChannel(onMessage);
@@ -121,7 +135,7 @@
   }
   function pickPixel() {
     const pixels = [...session.sync.state.pixels.values()].filter(p => !p.deleted);
-    const humans = pixels.filter(p => !/^bot[.\d]/i.test(p.by));
+    const humans = pixels.filter(p => !isBot(p.by));
     const pool = humans.length ? humans : pixels;
     const p = pool.sort((a, b) => b.t - a.t)[0];
     return p ? { x: p.x, y: p.y } : null;
@@ -138,7 +152,14 @@
     if (index !== scenes.findIndex(s => s.id === 'hotkey')) { dir = 1; index = scenes.findIndex(s => s.id === 'hotkey'); step = 0; }
     try {
       for (const n of ['3', '2', '1']) { countdown = n; await new Promise(r => setTimeout(r, 1000)); }
-      await phase('hotkey_running'); countdown = 'VIA!';
+      try { await phase('hotkey_running'); }
+      catch (e) {
+        // The room has just counted to one: a stale META version is not a reason to leave them hanging.
+        if (!(e instanceof ApiFailure && e.status === 409)) throw e;
+        session.meta = await api.call<Meta>('/meta');
+        await phase('hotkey_running');
+      }
+      countdown = 'VIA!';
       setTimeout(() => { countdown = null; }, 700);
     } catch (e) { countdown = null; session.report(e); }
   }
@@ -187,7 +208,7 @@
       </section>
     {/key}
     <Chrome {session} {index} {step} {meterOn} {regiaOnline} />
-    {#if xray}<XRay {api} {session} onclose={() => (xray = false)} />{/if}
+    {#if xray}<XRay {api} {session} prefer={xrayPrefer} onclose={() => (xray = false)} />{/if}
     {#if countdown}
       {#key countdown}<div class="countdown" class:go={countdown === 'VIA!'}>{countdown}</div>{/key}
     {/if}

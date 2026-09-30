@@ -5,6 +5,8 @@
   import { scenes } from './slides';
   let { session, index, step, meterOn, regiaOnline }: { session: Session; index: number; step: number; meterOn: boolean; regiaOnline: boolean } = $props();
   const scene = $derived(scenes[index]!);
+  // The cost scene has the receipt: a second running total in the corner would only compete with it.
+  const showMeter = $derived(meterOn && scene.id !== 'cost');
   const status = $derived(config.static ? 'Fallback statico · esempi simulati' : config.mock ? 'Demo · dati simulati' : !session.online ? 'Rete assente · riconnessione' : `Live · ${config.sid}`);
   const cost = $derived(session.stats?.estimatedCost);
 </script>
@@ -30,7 +32,7 @@
     {/each}
   </ol>
   {#if (!regiaOnline && session.notice && !config.static)}<p class="notice">{session.notice}</p>{/if}
-  {#if meterOn && index !== 7}
+  {#if showMeter}
     <div class="meter" title="Stima a listino on-demand">
       <span class="eyebrow">Costo finora</span>
       <strong class="mono">{cost === undefined ? '—' : cost === null ? 'n/d' : usd(cost)}</strong>

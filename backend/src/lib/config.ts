@@ -12,6 +12,9 @@ export function configuration(adminKey = process.env.ADMIN_KEY) {
     endpoint, adminKey, tableName: process.env.TABLE_NAME ?? 'DynamoLive-local',
     region: process.env.AWS_REGION ?? 'eu-central-1',
     origins: (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173').split(',').map(o => o.trim()).filter(Boolean),
+    // Only used to read this session's own usage back from CloudWatch; absent in local mode, where the panel stays off.
+    functionName: process.env.AWS_LAMBDA_FUNCTION_NAME ?? '',
+    apiId: process.env.API_ID ?? '',
   };
 }
 export type Configuration = ReturnType<typeof configuration>;

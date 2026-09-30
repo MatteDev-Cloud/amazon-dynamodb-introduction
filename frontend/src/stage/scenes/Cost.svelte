@@ -1,14 +1,42 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import type { AwsUsageResponse } from '../../../../shared/types.js';
   import { config } from '../../shared/config';
   import type { Session } from '../../shared/session.svelte';
-  import { clock, number, usd } from '../../shared/ui';
+  import { clock, isBot, number, usd } from '../../shared/ui';
   import Title from '../parts/Title.svelte';
   import Count from '../parts/Count.svelte';
   import { reveal } from '../motion';
   let { session, step }: { session: Session; step: number } = $props();
   const s = $derived(session.stats);
   const k = $derived([1, 1000, 1_000_000][step] ?? 1);
-  const people = $derived(Math.max(1, session.players.length) * k);
+  // The swarm joined as ordinary players: it is not «persone in sala».
+  const inRoom = $derived(session.players.filter(p => !isBot(p.nickname)).length);
+  const people = $derived(Math.max(1, inRoom) * k);
+
+  /**
+   * The same quantities read back from AWS (CloudWatch) instead of from our own counters: the receipt is
+   * measured capacity × published price, and this is the audit of the first half of that multiplication.
+   * Deliberately soft: one fetch when the scene opens, a refresh every 20 s, and nothing on screen if AWS
+   * does not answer. It is a check, never a dependency of the slide.
+   */
+  let aws = $state<AwsUsageResponse>();
+  const total = (units: Record<string, number> | undefined) => Object.values(units ?? {}).reduce((sum, v) => sum + v, 0);
+  const awsLines = $derived.by(() => {
+    const u = aws?.usage; if (!u) return [];
+    return [
+      { label: 'Scritture tabella · WRU', value: u.wruTable, digits: 0 },
+      ...Object.entries(u.wruGsi).map(([name, value]) => ({ label: `Scritture GSI ${name}`, value, digits: 0 })),
+      { label: 'Letture · RRU', value: u.rruTable + total(u.rruGsi), digits: 0 },
+      { label: 'Richieste HTTP API', value: u.apiRequests, digits: 0 },
+      { label: 'Calcolo Lambda · s', value: u.lambdaMs / 1000, digits: 1 },
+    ];
+  });
+  async function checkAws() {
+    if (config.mock || config.static || !session.admin) return;
+    try { aws = await session.api.call<AwsUsageResponse>('/admin/aws'); } catch { /* the slide stands on its own */ }
+  }
+  onMount(() => { void checkAws(); const id = setInterval(checkAws, 20000); return () => clearInterval(id); });
   const lines = $derived(s ? [
     { label: 'Richieste API', value: s.apiCalls },
     { label: 'Scritture tabella · WRU', value: s.wruTable, digits: 1 },
@@ -33,12 +61,13 @@
       <p class="big display"><Count value={people} /></p>
       <p class="muted">{k === 1 ? 'persone in sala' : 'persone simulate'}</p>
       {#if step === 0}
-        <div class="dots small">{#each Array.from({ length: Math.min(200, session.players.length) }) as _, i (i)}<i style:animation-delay="{i * 12}ms"></i>{/each}</div>
+        <div class="dots small">{#each Array.from({ length: Math.min(200, inRoom) }) as _, i (i)}<i style:animation-delay="{i * 12}ms"></i>{/each}</div>
       {:else if step === 1}
         <div class="dots">{#each Array.from({ length: 1000 }) as _, i (i)}<i style:animation-delay="{(i % 50) * 14 + Math.floor(i / 50) * 20}ms"></i>{/each}</div>
       {:else}
+        <!-- Fonte: blog AWS, APPROFONDIMENTO.md nota [19]. Da riverificare prima di ogni talk (checklist). -->
         <p class="prime display" use:reveal={{ delay: .4 }}>Prime Day 2025: <b>151 milioni</b> di richieste al secondo.</p>
-        <p class="muted small-note" use:reveal={{ delay: .6 }}>Dato pubblicato da AWS per quell’evento, non la capacità dimostrata dalla nostra tabella.</p>
+        <p class="muted small-note" use:reveal={{ delay: .6 }}>Dato pubblicato da AWS per quell’evento, non la capacità dimostrata dalla nostra tabella. E a quella scala il nostro contatore unico non reggerebbe: è l’<b>hot key</b> di poco fa.</p>
       {/if}
     </div>
   </div>
@@ -62,9 +91,22 @@
         </p>
         {#if step === 0}<p class="gsi-note">↑ ogni GSI moltiplica le scritture</p>{/if}
         <hr />
-        <p class="fine">{config.mock || config.static ? 'DATI SIMULATI' : 'Stima a listino on-demand'} · {s.prices.region}. Prima di crediti e imposte; hosting, storage e log esclusi. {k > 1 ? 'Proiezione a listino, non un test di carico.' : ''}</p>
+        <p class="fine">{config.mock || config.static ? 'DATI SIMULATI' : 'Capacità misurata dall’app × listino on-demand'} · {s.prices.region}. Prima di crediti e imposte; hosting, storage e log esclusi. {k > 1 ? 'Proiezione a listino, non un test di carico.' : ''}</p>
       {/if}
     </div>
+    {#if step === 0 && aws?.available && aws.usage}
+      <div class="verify mono" use:reveal={{ delay: .6, y: 30 }}>
+        <p class="vhead">Gli stessi numeri, letti da AWS</p>
+        {#each awsLines as line (line.label)}
+          <p class="vline"><span>{line.label}</span><b>{number(line.value, line.digits)}</b></p>
+        {/each}
+        <p class="vline vtotal"><span>TOTALE SECONDO AWS</span><b>{aws.estimatedCost == null ? 'n/d' : usd(aws.estimatedCost)}</b></p>
+        <p class="vfine">
+          CloudWatch · ritardo {aws.usage.staleMs === null ? 'n/d' : `~${Math.round(aws.usage.staleMs / 1000)} s`}.
+          Misura la tabella e la funzione, non la singola sessione.
+        </p>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -95,5 +137,12 @@
   .total { font-size: 30px; font-weight: 800; }
   .total b { color: var(--accent); }
   .gsi-note { font-size: 18px; color: var(--accent); margin-top: 10px !important; }
+  .verify { margin-top: 26px; background: var(--card); border: 1.5px solid var(--blue); border-radius: 18px; padding: 18px 22px; font-size: 17px; }
+  .vhead { margin: 0 0 10px; color: var(--blue); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 14px; }
+  .vline { display: flex; justify-content: space-between; gap: 18px; margin: 5px 0; }
+  .vline span { color: var(--ink-2); }
+  .vtotal { margin-top: 10px; padding-top: 10px; border-top: 2px dashed var(--line-2); font-weight: 800; font-size: 21px; }
+  .vtotal b { color: var(--blue); }
+  .vfine { font-size: 13px; color: var(--muted); margin: 10px 0 0; line-height: 1.45; }
   .fine { font-size: 15px; color: var(--muted); line-height: 1.5; }
 </style>

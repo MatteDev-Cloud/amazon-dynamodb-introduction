@@ -4,7 +4,7 @@
   import { fly } from 'svelte/transition';
   import { config } from '../../shared/config';
   import type { Session } from '../../shared/session.svelte';
-  import { time } from '../../shared/ui';
+  import { isBot, time } from '../../shared/ui';
   import Title from '../parts/Title.svelte';
   import Count from '../parts/Count.svelte';
   import { reveal } from '../motion';
@@ -15,6 +15,17 @@
   const orange = $derived(session.stats?.teamOrange ?? 0);
   const purple = $derived(session.stats?.teamPurple ?? 0);
   const share = $derived(orange + purple ? orange / (orange + purple) * 100 : 50);
+  /**
+   * The hash that assigned the teams promises nothing about their size, and with thirty people a 18/12
+   * split is ordinary. Saying so turns the obvious objection («era truccata») into the point of the slide:
+   * the totals are raw, the per-person figure is the fair comparison. Shown only when it actually matters.
+   * Swarm workers are not people and never tap: they are excluded.
+   */
+  const people = $derived(session.players.filter(p => !isBot(p.nickname)));
+  const orangePeople = $derived(people.filter(p => p.team === 'orange').length);
+  const purplePeople = $derived(people.length - orangePeople);
+  const lopsided = $derived(!!orangePeople && !!purplePeople && Math.abs(orangePeople - purplePeople) / people.length > .15);
+  const perPerson = (total: number, n: number) => n ? (total / n).toLocaleString('it-IT', { maximumFractionDigits: 1 }) : '—';
   const rows = $derived.by(() => {
     const seen = new Map<string, number>();
     return (session.leaderboard?.top ?? []).slice(0, 7).map(p => { const base = `${p.nickname}:${p.team}`, n = seen.get(base) ?? 0; seen.set(base, n + 1); return { ...p, key: `${base}:${n}` }; });
@@ -54,6 +65,12 @@
       <div class="side o"><b class="display"><Count value={orange} /></b><span>arancioni</span></div>
       <div class="side p"><span>viola</span><b class="display"><Count value={purple} /></b></div>
     </div>
+    {#if lopsided}
+      <p class="fair mono">
+        Squadre non pari: {orangePeople} contro {purplePeople} — le ha divise un hash, non un arbitro.
+        A testa: <b class="o">{perPerson(orange, orangePeople)}</b> contro <b class="p">{perPerson(purple, purplePeople)}</b>.
+      </p>
+    {/if}
     <div class="grid">
       <ol class="board">
         {#each rows as r (r.key)}
@@ -97,7 +114,9 @@
     background: linear-gradient(90deg, var(--orange) 0 var(--share), var(--purple) var(--share) 100%); transition: --share .5s; }
   .side { display: flex; align-items: baseline; gap: 16px; font-size: 28px; z-index: 1; }
   .side b { font-size: 84px; font-weight: 500; }
-  .grid { display: grid; grid-template-columns: 1fr 640px; gap: 50px; margin-top: 30px; }
+  .fair { margin: 12px 0 0; font-size: 22px; color: var(--muted); }
+  .fair b { font-size: 26px; } .fair .o { color: var(--orange); } .fair .p { color: var(--purple); }
+  .grid { display: grid; grid-template-columns: 1fr 640px; gap: 50px; margin-top: 22px; }
   .board { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; align-content: start; }
   .board li { display: grid; grid-template-columns: 50px 1fr auto; align-items: center; gap: 16px; padding: 10px 22px; border-radius: 16px; font-size: 28px; border: 1.5px solid var(--line-2);
     background: linear-gradient(90deg, color-mix(in srgb, var(--team) 22%, var(--card)) var(--score), var(--card) var(--score)); }

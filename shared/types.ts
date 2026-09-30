@@ -5,18 +5,23 @@ export type Team = 'orange' | 'purple';
 /** Pixel colors come from the target picture (see logo.ts). */
 export { LOGO_PALETTE as PALETTE } from './logo.js';
 export interface Meta {
-  sid: string; phase: Phase; version: number; phaseStartedAt: number; phaseEndsAt: number | null;
+  sid: string; phase: Phase; version: number; createdAt: number; phaseStartedAt: number; phaseEndsAt: number | null;
   canvasW: number; canvasH: number; cooldownMs: number; roundMs: number; pixelMs: number;
   canvasHidden: boolean; canvasRevision: number; teamsRevealed: boolean;
   roundId: string | null; roundStartedAt: number | null; roundEndsAt: number | null;
   tapGraceMs: number; expiresAt: number; prompt: string; botsEnabled: boolean;
+  /** TTL of the canvas items (epoch seconds): 24 h during the talk, a few dozen seconds once the closing starts. */
+  canvasExpiresAt: number;
+  /** How long the closing dissolve lasts: entering the `end` phase spreads the pixel TTLs over this window. */
+  endTtlMs: number;
 }
 export interface Player {
   PK: string; SK: string; pid: string; nickname: string; team: Team; joinedAt: number;
   pixelsPlaced?: number; lastPixelAt?: number; score?: number; lastSeq?: number; lastDelta?: number;
   roundId?: string; lb?: string; banned?: boolean; expiresAt: number;
 }
-export interface Pixel { x: number; y: number; c: number; by: string; t: number; deleted?: boolean }
+/** `e` is the item's own TTL attribute (epoch seconds): the closing dissolve is driven by it. */
+export interface Pixel { x: number; y: number; c: number; by: string; t: number; deleted?: boolean; e?: number }
 export interface RawPixel {
   PK: string; SK: string; x: number; y: number; color: number; by: string; byId: string;
   cv: string; updatedAt: number; deleted?: boolean; expiresAt: number;
@@ -43,10 +48,23 @@ export interface Leader { nickname: string; team: Team; score: number; rank: num
 export interface LeaderboardResponse { top: Leader[]; provisional: boolean; roundId: string | null }
 export interface RankResponse { rank: number | null; total: number; score: number; provisional: boolean }
 export interface PhaseRequest { phase: Phase; expectedVersion: number; durationMs?: number }
-export interface SessionConfig { canvasW?: number; canvasH?: number; cooldownMs?: number; roundMs?: number; pixelMs?: number; prompt?: string }
+export interface SessionConfig { canvasW?: number; canvasH?: number; cooldownMs?: number; roundMs?: number; pixelMs?: number; prompt?: string; endTtlMs?: number }
 export interface ClearRequest { x1: number; y1: number; x2: number; y2: number }
 export interface ClearResponse { deleted: number; canvasRevision: number }
 export interface StatsResponse extends Stats { prices: PriceConfig; estimatedCost: number | null; costBasis: 'on-demand-list-price' }
+/**
+ * What AWS itself reports for the resources behind this session (CloudWatch, not the app's own counters).
+ * `window` is the measured interval; CloudWatch publishes with a delay, so `staleMs` says how old the last point is.
+ */
+export interface AwsUsage {
+  from: number; to: number; staleMs: number | null; period: number;
+  wruTable: number; wruGsi: Record<string, number>; rruTable: number; rruGsi: Record<string, number>;
+  apiRequests: number; lambdaInvocations: number; lambdaMs: number; lambdaErrors: number; throttled: number;
+}
+export interface AwsUsageResponse {
+  available: boolean; reason?: string; usage?: AwsUsage; estimatedCost?: number | null;
+  prices: PriceConfig; scope: 'table-and-functions-in-region';
+}
 export interface Stats {
   playersJoined: number; pixelsPlaced: number; pixelConflicts?: number; taps: number; teamOrange: number; teamPurple: number;
   apiCalls: number; wruTable: number; wruGsi: number; rruTable: number; rruGsi: number;

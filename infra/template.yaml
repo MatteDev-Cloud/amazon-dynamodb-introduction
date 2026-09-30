@@ -125,7 +125,9 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: '$default'
-      DefaultRouteSettings: {ThrottlingBurstLimit: 500, ThrottlingRateLimit: 300}
+      # A limit, not a reservation: nothing is paid for the headroom, and a throttled poll looks like an
+      # outage on the projector. 60 phones at peak plus LIM and Regia is ~250 req/s; keep room for double.
+      DefaultRouteSettings: {ThrottlingBurstLimit: 2000, ThrottlingRateLimit: 1000}
       CorsConfiguration:
         AllowOrigins: !If
           - IsLive
@@ -141,13 +143,16 @@ Resources:
       Architectures: [arm64]
       MemorySize: 256
       Timeout: 5
-      Handler: handler.handler
+      Handler: handler.handler   # backend/dist/handler.js, bundled by scripts/build.mjs
       CodeUri: ../backend/dist/
       Environment:
         Variables:
           TABLE_NAME: !Ref Table
           # SecureString created by hand before the first deploy (see docs/aws-setup.md); never a plain env var.
           ADMIN_KEY_PARAMETER: !Sub '/dynamolive/${Environment}/admin-key'
+          # No API_ID here on purpose: !Ref HttpApi from the function would be a circular dependency
+          # (SAM already makes the API depend on the function through the route). GET /admin/aws takes
+          # the id from event.requestContext.apiId instead.
           ALLOWED_ORIGINS: !If
             - IsLive
             - !Sub 'https://${Distribution.DomainName}'
@@ -159,6 +164,10 @@ Resources:
             - Effect: Allow
               Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query, dynamodb:ConditionCheckItem]
               Resource: [!GetAtt Table.Arn, !Sub '${Table.Arn}/index/*']
+            # Read-only, and cwm:GetMetricData takes no resource-level conditions. Used for the cost check only.
+            - Effect: Allow
+              Action: cloudwatch:GetMetricData
+              Resource: '*'
       Events:
         Api:
           Type: HttpApi
@@ -178,7 +187,12 @@ Resources:
         TimeUnit: MONTHLY
         BudgetLimit: {Amount: !If [IsLive, 2, 1], Unit: USD}
       NotificationsWithSubscribers:
+        - Notification: {NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 50, ThresholdType: PERCENTAGE}
+          Subscribers: [{SubscriptionType: EMAIL, Address: !Ref BudgetEmail}]
         - Notification: {NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 100, ThresholdType: PERCENTAGE}
+          Subscribers: [{SubscriptionType: EMAIL, Address: !Ref BudgetEmail}]
+        # An actual-cost alarm arrives up to a day late: the forecast is the one that can still be acted on.
+        - Notification: {NotificationType: FORECASTED, ComparisonOperator: GREATER_THAN, Threshold: 100, ThresholdType: PERCENTAGE}
           Subscribers: [{SubscriptionType: EMAIL, Address: !Ref BudgetEmail}]
 Outputs:
   ApiUrl: {Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'}

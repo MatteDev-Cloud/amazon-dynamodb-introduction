@@ -43,7 +43,9 @@ export function navigate(params: Record<string, string | null>, keepKey?: string
 
 export function playUrl() {
   const url = new URL('/play', import.meta.env.VITE_PUBLIC_ORIGIN || location.origin);
-  url.searchParams.set('s', config.sid); url.searchParams.set('api', config.api);
+  url.searchParams.set('s', config.sid);
+  // Keep the QR as sparse as possible: the build already knows its own API, so only say it when it differs.
+  if (config.api !== import.meta.env.VITE_API_BASE) url.searchParams.set('api', config.api);
   if (config.mock) url.searchParams.set('mode', 'mock');
   return url.href;
 }

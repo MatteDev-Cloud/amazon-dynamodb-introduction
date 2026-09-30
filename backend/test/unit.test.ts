@@ -20,7 +20,7 @@ test('config bounds, phases and credential comparisons',()=>{
 });
 test('admin and malformed requests are rejected before any database access',async()=>{
   let calls=0;
-  const app=createApp({adminKey:'test-secret-long-enough',tableName:'test',region:'eu-central-1',endpoint:'http://localhost:8000',origins:['http://localhost:5173']},{client:{send:async()=>{calls++;throw Error('Unexpected DB access');}} as any});
+  const app=createApp({adminKey:'test-secret-long-enough',tableName:'test',region:'eu-central-1',endpoint:'http://localhost:8000',origins:['http://localhost:5173'],functionName:'',apiId:''},{client:{send:async()=>{calls++;throw Error('Unexpected DB access');}} as any});
   const req={method:'POST',path:'/s/a/admin/reset',headers:{},query:{},body:{}};
   assert.equal((await app(req)).statusCode,401);
   assert.equal((await app({...req,path:'/s/a/admin/phase'})).statusCode,401);
