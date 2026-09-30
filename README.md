@@ -43,7 +43,7 @@ Dettagli in [docs/architecture.md](docs/architecture.md).
 - **Backend**: TypeScript, AWS SDK v3, un handler Lambda con router interno (lo stesso gira come server Node in locale).
 - **Dati**: una tabella DynamoDB (single-table design), GSI `ByTime` e `ByScore`, transazioni, scritture condizionali, TTL.
 - **Infrastruttura**: AWS SAM (CloudFormation) in [`infra/template.yaml`](infra/template.yaml).
-- **Locale**: DynamoDB Local in Docker ([`compose.yaml`](compose.yaml)).
+- **Locale** (branch `develop`): DynamoDB Local in Docker. Su `prod` gli emulatori non ci sono.
 
 ## Branch
 
@@ -57,20 +57,18 @@ Il codice applicativo è lo **stesso** nei tre branch: cambiano solo strumenti e
 
 ## Demo locale (senza AWS)
 
-Servono Node.js 22+, npm e Docker Desktop.
+Il branch **`prod` non contiene gli emulatori**: niente `compose.yaml`, niente server Node locale. Per provare senza AWS ci sono due strade.
+
+**Senza backend, da qualsiasi build** — le dieci scene funzionano con dati simulati o d'esempio:
 
 ```powershell
-npm ci
 npm --prefix frontend ci
-Copy-Item .env.example .env                                           # solo se .env non esiste
-Copy-Item frontend/.env.development.example frontend/.env.development # solo se non esiste
-docker compose up -d
-npm run seed -- --sid demo-01
-npm run dev:api                      # terminale 1
-npm --prefix frontend run dev        # terminale 2
+npm --prefix frontend run dev
 ```
 
-Aprire `http://localhost:5173/stage?s=demo-01` sulla LIM, premere **R** per aprire la regia e incollare la chiave admin di `.env`. Sul branch `develop` basta `./scripts/demo-local.ps1`. Guida completa (anche telefoni in LAN e modalità senza backend): [docs/demo-guide.md](docs/demo-guide.md).
+Poi `http://localhost:5173/stage?mode=mock&s=prova` (database finto nel browser, i giochi funzionano davvero) oppure `?mode=static` (nessuna chiamata di rete, dati d'esempio dichiarati: è il piano B di livello 4).
+
+**Con un database vero in locale**: branch `develop`, che aggiunge DynamoDB Local in Docker e `./scripts/demo-local.ps1`. Guida completa: [docs/demo-guide.md](docs/demo-guide.md).
 
 ## Ambiente AWS (production)
 
@@ -99,9 +97,21 @@ La chiave admin vive in SSM Parameter Store, non nel codice né nelle variabili 
 
 ## Verifiche
 
+`deploy-aws.ps1` le esegue da solo e si ferma se una fallisce. A mano:
+
 ```powershell
-npm run typecheck; npm test                      # backend: tipi e test unitari
-npm run test:integration                         # backend su DynamoDB Local (serve Docker)
+npm run typecheck; npm test                      # backend: tipi, dominio e flussi su un DynamoDB finto
 npm --prefix frontend run typecheck; npm --prefix frontend test
-npm run build:backend; npm --prefix frontend run build:live
+npm run build:backend                            # → backend/dist/handler.js
 ```
+
+Prove nel browser (servono Chrome e un'installazione di Playwright già presente, non viene scaricato nulla):
+
+```powershell
+npm --prefix frontend run dev                    # terminale 1
+node frontend/tests/browser.mjs                  # giro completo in modalità mock, con screenshot
+node frontend/tests/closing.mjs                  # dissolvenza finale + orologio del portatile sfasato
+node frontend/tests/network.mjs                  # client reale contro un'API finta: 409, 429, riconnessione
+```
+
+Se Playwright è installato altrove: `$env:PLAYWRIGHT_MODULE = '<percorso>/node_modules/playwright'`.

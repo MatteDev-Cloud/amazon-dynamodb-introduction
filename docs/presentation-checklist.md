@@ -10,6 +10,8 @@ Stampatela o tenetela aperta sul telefono. Ogni voce è una cosa verificabile, n
 - [ ] Concorrenza Lambda dell'account ≥ 50 (*Lambda → Dashboard*); se è 10, richiesta di aumento già inviata.
 - [ ] Crediti/free plan AWS validi alla data del talk; budget con email attivo.
 - [ ] Almeno **due prove cronometrate a due voci** con la regia: totale entro 14:30.
+- [ ] **Chiusura provata fino in fondo**: dopo l'ultimo «Avanti» i pallini spariscono uno per volta e il contatore arriva a `00:00:00` mentre si saluta. Se 60 s sono troppo pochi o troppi: `-EndTtlSeconds` alla creazione della sessione, oppure il pulsante in regia.
+- [ ] Scena del costo: il riquadro «Gli stessi numeri, letti da AWS» compare (serve qualche minuto di traffico prima, perché CloudWatch ha 1–3 minuti di ritardo).
 - [ ] Piano B provato una volta ciascuno: backend locale, LIM statica, video.
 - [ ] Video di backup registrato (una prova completa) e copiato in `frontend/public/backup.mp4` **e** su una chiavetta.
 - [ ] Numero del Prime Day verificato sul blog AWS (o frase senza numero).
@@ -28,13 +30,14 @@ Stampatela o tenetela aperta sul telefono. Ogni voce è una cosa verificabile, n
 - [ ] Hotspot del telefono pronto come alternativa.
 - [ ] Proiettore collegato, schermo **esteso** (non duplicato): LIM sul proiettore, regia sul portatile.
 - [ ] Notifiche disattivate (Windows *Non disturbare*, telefono in silenzioso), aggiornamenti di Windows in pausa, risparmio energetico disattivato.
+- [ ] Orologio del portatile sincronizzato (*Impostazioni → Data e ora → Sincronizza ora*): non rompe niente, ma la regia lo segnala e i tempi a schermo restano quelli del server.
 - [ ] Chiave admin negli appunti: `./scripts/new-session-aws.ps1 -Environment live -Sid talk-01 -CopyKey` (la sessione esiste già: lo script copia solo la chiave).
 
 ## 10 minuti prima
 
 - [ ] LIM: `https://<SiteUrl>/stage?s=talk-01`, schermo intero (F11), slide 1 con il QR.
 - [ ] Regia aperta con **R**, spostata sul portatile, chiave incollata.
-- [ ] In regia tutto **verde**: «LIM collegata», «AWS · eu-central-1 · xx ms» (sotto 300 ms), «Chiave admin ok».
+- [ ] In regia tutto **verde**: «LIM collegata», «AWS · eu-central-1 · xx ms» (sotto 300 ms), «Chiave admin ok», e **nessun** avviso sull'orologio.
 - [ ] Fase database = «Lobby · ingresso aperto», cronometro a `--:--`.
 - [ ] Lambda scaldata: aprire `/play?s=talk-01` su un telefono ed entrare con un nome di prova (poi chiudere).
 - [ ] QR letto dall'ultima fila.
@@ -51,5 +54,6 @@ Stampatela o tenetela aperta sul telefono. Ogni voce è una cosa verificabile, n
 
 - [ ] Screenshot della tela finale e del podio.
 - [ ] Fase `end` raggiunta (l'ingresso è chiuso da solo).
-- [ ] Dopo 24–48 h: costo reale in *Cost Explorer*.
+- [ ] Subito: `./scripts/aws-cost.ps1 -Environment live -AwsProfile live` — le quantità misurate da AWS, da confrontare con lo scontrino mostrato in sala.
+- [ ] Dopo 24–48 h: costo davvero fatturato, `./scripts/aws-cost.ps1 -Environment live -AwsProfile live -Billed` (o *Cost Explorer*). Se è zero, il free tier ha coperto tutto: è il risultato giusto.
 - [ ] A progetto concluso: `sam delete` e pulizia di bucket, tabella e parametro SSM (vedi [aws-setup.md](aws-setup.md#12-costi)).

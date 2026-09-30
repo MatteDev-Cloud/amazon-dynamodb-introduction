@@ -92,7 +92,7 @@ E se in due puntate la stessa cella nello stesso istante? Vince il primo. L'altr
 
 ▶ **Speaker 1: Avanti** → *3.2, la soglia e il 503.*
 
-«Il grafico è illustrativo, non una misura storica. Ma il problema era reale: servizi che crescono, e un database che diventa il collo di bottiglia. Quando cade il database, cade il negozio.»
+«Il grafico è illustrativo, non una misura storica — e anche il Natale 2004 è la cornice del racconto, non un incidente che vi possiamo documentare. Ma il problema era reale, ed è scritto nel paper: servizi che crescono, e un database che diventa il collo di bottiglia. Quando cade il database, cade il negozio.»
 
 ▶ **Speaker 1: Avanti** → *3.3, la linea del tempo.*
 
@@ -105,6 +105,11 @@ E se in due puntate la stessa cella nello stesso istante? Vince il primo. L'altr
 
 **Speaker 2** (4.1, hash nei cassetti):
 «La partition key passa in una funzione di hash, e il risultato decide in quale partizione finisce l'item. Pensate ai cassetti di un archivio: sono una metafora, AWS non ci mostra le partizioni vere. Ma il principio è questo, ed è per questo che la partition key si sceglie con cura e non si cambia più.»
+
+*Quando i nomi sono finiti nei cassetti compare la frase chiave sulla sinistra. Non leggerla: commentarla.*
+
+«E qui c'è tutta la differenza. Aggiungere cassetti è facile: se raddoppiate, AWS ne mette altri e nessuno se ne accorge. Ingrandire **un solo** cassetto, no: è lì che il database di prima trovava il suo tetto.
+Ma non è gratis. Si cresce così **perché** ogni domanda deve poter essere risposta guardando dentro un cassetto solo. Tenete a mente questo prezzo: fra due slide lo paghiamo.»
 
 ▶ **Speaker 1: Avanti** → *4.2.*
 
@@ -128,7 +133,9 @@ E se in due puntate la stessa cella nello stesso istante? Vince il primo. L'altr
 
 ▶ **Speaker 2: Avanti** → *5.3.*
 
-«Una Query va dritta nel cassetto giusto. Uno Scan rovescia tutto l'archivio sul tavolo e poi cerca. Il filtro non lo rende economico: paghi quello che leggi, non quello che tieni. E niente JOIN: se una domanda non l'avevi prevista, spesso devi cambiare il modello.»
+«Ecco il prezzo di cui vi parlavo. Una Query va dritta nel cassetto giusto. Uno Scan rovescia tutto l'archivio sul tavolo e poi cerca: "chi ha acceso il pixel in alto a destra?" con la chiave è un item solo, senza la chiave sono tutti e duecentocinquantadue.
+E il filtro non vi salva: il filtro si applica **dopo** aver letto, quindi pagate tutto quello che è stato letto, non quello che vi resta in mano.
+Niente JOIN: se una domanda non l'avevate prevista, spesso si cambia il modello. Questo è il conto del fatto che scala.»
 
 **Transizione** – Speaker 1: «Tutto questo passa da pochi blocchi. [Nome Speaker 2]?»
 *Scambio.* ▶ **Speaker 1: Avanti** → *slide 6. Cambia fase: «HOT KEY pronto».*
@@ -137,6 +144,7 @@ E se in due puntate la stessa cella nello stesso istante? Vince il primo. L'altr
 
 **Speaker 2:**
 «Telefono, API Gateway, una Lambda, DynamoDB. I pallini che vedete scorrere sono le vostre richieste vere. Zero server nostri da gestire, non zero responsabilità: chiavi, permessi e correttezza sono ancora compito nostro.
+Una cosa che non abbiamo configurato: ogni vostra scrittura è già replicata su tre data center diversi della regione. Non c'è una casella da spuntare, è come è fatto.
 Finora avete collaborato. Adesso si gioca uno contro l'altro, tutti sugli stessi contatori.»
 
 ▶ **Speaker 1: Avanti** → *slide 7. La regia ora dice «Avvia HOT KEY».*
@@ -168,8 +176,12 @@ Punteggio personale e totale di squadra si aggiornano insieme, in una transazion
 ## 10:00 – 11:30 · Slide 8 «Cosa è appena successo» · Speaker 2
 
 **Speaker 2** (8.1, lo scontrino):
-«Questo è lo scontrino di tutto quello che avete fatto finora.» *(leggere il valore vero sulla LIM)* «È una stima a listino, calcolata dalla capacità che DynamoDB ci restituisce a ogni chiamata; esclude hosting, log e crediti gratuiti.
+«Questo è lo scontrino di tutto quello che avete fatto finora.» *(leggere il valore vero sulla LIM)* «Non è una simulazione: la quantità è quella che DynamoDB ci restituisce a ogni chiamata, `ReturnConsumedCapacity`. Il prezzo è il listino pubblicato di Francoforte. Esclude hosting, log, free tier e crediti.
 Guardate la riga degli indici: ogni scrittura che tocca un attributo indicizzato scrive anche nell'indice. Gli indici non sono gratis.»
+
+*Se sulla destra è comparso il riquadro blu «Gli stessi numeri, letti da AWS» (arriva con 1–3 minuti di ritardo, e può non comparire: la slide regge lo stesso):*
+
+«E se non vi fidate dei nostri contatori: questi sono gli stessi numeri letti da CloudWatch, cioè dichiarati da AWS. Non coincidono al decimale — il nostro contatore è bufferizzato e tende a stare un filo sotto — ma è lo stesso ordine di grandezza, ed è il punto.»
 
 ▶ **Speaker 1: Avanti** → *8.2, ×1.000.*
 
@@ -177,7 +189,10 @@ Guardate la riga degli indici: ogni scrittura che tocca un attributo indicizzato
 
 ▶ **Speaker 1: Avanti** → *8.3, ×1.000.000.*
 
-«…o un milione di volte. È solo una moltiplicazione, non un test di carico. Ma la API che avete usato è la stessa che Amazon usa durante il Prime Day, con centinaia di milioni di richieste al secondo al picco.»
+«…o un milione di volte. È solo una moltiplicazione, non un test di carico. Ma la API che avete usato è la stessa che Amazon usa durante il Prime Day, con centinaia di milioni di richieste al secondo al picco.
+E siate onesti fino in fondo: a quella scala il costo si moltiplica, ma il nostro contatore unico **non** reggerebbe. Ve l'abbiamo mostrato dieci minuti fa: è l'hot key. Il prezzo scala da solo, il modello dati no.»
+
+> Il numero sulla slide (151 milioni, Prime Day 2025) è quello citato in [APPROFONDIMENTO.md](contenuti/APPROFONDIMENTO.md) con il link al blog AWS. **Riaprite quel link prima del talk** (è in checklist): se il post non è più raggiungibile o il numero è cambiato, aggiornatelo in `History.svelte` e `Cost.svelte`, oppure dite «centinaia di milioni di richieste al secondo» senza anno né cifra — la frase funziona lo stesso e non è attaccabile.
 
 **Passaggio di voce** – Speaker 2: «Quindi dovremmo usarlo sempre? [Nome Speaker 1]…»
 *Scambio.* ▶ **Speaker 2: Avanti** → *9.1.*
@@ -198,10 +213,17 @@ E poi: indici da mantenere, dati duplicati da tenere coerenti, chiavi da distrib
 ## 13:00 – 14:15 · Slide 10 «Il ricordo resta. I dati scadono» · Speaker 2, chiusura Speaker 1
 
 **Speaker 2:**
-«Questa tela è anche vostra. Il conto alla rovescia indica quando i dati scadono: ventiquattro ore dalla creazione della sessione. Non scriveremo una riga di codice per cancellarli: ci pensa il TTL di DynamoDB.
-Onestà tecnica: la cancellazione vera è asincrona, di solito entro qualche giorno. Per questo l'app ignora già gli item scaduti.»
+*Quell'ultimo «Avanti» ha accorciato il TTL: da adesso i pallini cominciano a sparire da soli, uno per volta, nell'ordine in cui il pubblico li ha accesi. Lasciate che la gente se ne accorga da sola — una pausa di due secondi vale più di una spiegazione.*
 
-*Indicare il QR del documento, lasciare 15–20 secondi.*
+«Guardate la tela.
+In DynamoDB il TTL non è un comando di cancellazione: è un **attributo**, su ogni singolo item. Ognuno di quei pallini porta scritta la propria scadenza — e sta arrivando.
+Non scriveremo una riga di codice per cancellarli. Nessun job notturno, nessun cron.»
+
+*Attendere che la tela sia quasi vuota.*
+
+«Onestà tecnica, perché è la parte interessante: AWS li cancella davvero più tardi, in modo asincrono e gratuito. Quello che state vedendo sparire è la **scadenza logica**: chi legge — questa pagina, il nostro backend — ignora già gli item scaduti. È così che funziona in produzione.»
+
+*Indicare il QR del documento, lasciare 15–20 secondi. Il contatore arriva a 00:00:00 mentre si saluta.*
 
 «Con questo QR trovate il documento di approfondimento: scelte, compromessi e fonti.»
 
@@ -217,18 +239,19 @@ Grazie. Eravate già nel database.»
 - **1** QR → nomi → «siete una riga in un database».
 - **2.1** 90 s, pulsante tenuto premuto, PX#012#005, vince il primo → «rinforzi» (S2: Completa il logo).
 - **2.2–2.4** item = pixel · PK raggruppa, SK ordina · «questo sei tu» · stessa tabella, attributi diversi → passa a S2.
-- **5** prima le domande · ByTime, ByScore · Query = cassetto giusto, Scan = rovesciare l'archivio · niente JOIN → passa a S2.
+- **5** prima le domande · ByTime, ByScore · Query = 1 item, Scan = tutti e 252 · il filtro si applica **dopo** la lettura · niente JOIN = il conto del fatto che scala → passa a S2.
 - **7** regole in 10 s → tifo → «perché HOT KEY: stesso item per tutti; a grande scala lo dividerei».
 - **9** sì: domande note, traffico variabile · no: domande che cambiano, analisi · complessità spostata all'inizio → passa a S2.
 - **Chiusura** «prima le domande, poi i dati. Eravate già nel database.»
 
 **Speaker 2**
-- **3** Natale × milioni · grafico illustrativo · Dynamo 2007 (paper) ≠ DynamoDB 2012 (servizio).
-- **4** hash → partizione (metafora) · SK ordina, zeri davanti · squadre = hash del vostro id (nostro, non di AWS) → passa a S1.
-- **6** telefono → API Gateway → Lambda → DynamoDB · zero server nostri ≠ zero responsabilità.
+- **3** Natale × milioni · grafico **e data** illustrativi (cornice del racconto, non incidente documentato) · Dynamo 2007 (paper) ≠ DynamoDB 2012 (servizio).
+- **4** hash → partizione (metafora) · **«aggiungere cassetti è facile, ingrandirne uno no» = perché scala, e il prezzo sono le domande** · SK ordina, zeri davanti · squadre = hash del vostro id (nostro, non di AWS) → passa a S1.
+- **6** telefono → API Gateway → Lambda → DynamoDB · zero server nostri ≠ zero responsabilità · 3 data center senza averlo chiesto.
 - **7** (regia) Avvia 3·2·1 · I = X-Ray · batch numerati, nessun punto doppio · transazione · GSI asincrono.
-- **8** scontrino = stima a listino · gli indici costano · ×1000 è una moltiplicazione, non un test → passa a S1.
-- **10** TTL 24 h · cancellazione asincrona (giorni) · QR documento → passa a S1.
+- **7** HOT KEY: `ADD` atomico, nessun lock · la classifica è un GSI già ordinato · se le squadre sono sbilanciate la LIM mostra i tap **a testa**: «le ha divise un hash, non un arbitro» → dirlo prima che lo dica il pubblico.
+- **8** scontrino = quantità misurate × listino · gli indici costano · riquadro blu = gli stessi numeri secondo AWS · ×1000 è una moltiplicazione, non un test → passa a S1.
+- **10** «Avanti» qui accorcia il TTL: i pallini spariscono uno per volta · il TTL è un attributo **per item** · la cancellazione fisica è asincrona e gratuita, quella che si vede è logica · QR documento → passa a S1.
 
 ## Domande probabili del docente
 
@@ -241,16 +264,19 @@ Grazie. Eravate già nel database.»
 | Letture consistenti o eventuali? | Lettura forte su `META` e sulla classifica finale, dove serve lo stato esatto; il GSI durante il round è eventuale e lo accettiamo (lo diciamo in scena). La lettura forte costa il doppio. |
 | Come evitate che due persone accendano lo stesso pixel? | Scrittura condizionale `attribute_not_exists(PK)` dentro una `TransactWriteItems`: la prima vince, la seconda riceve `409 PIXEL_TAKEN`. Nessun lock, nessuna lettura preventiva. |
 | E se una richiesta viene ripetuta? | I tap hanno un numero di sequenza: stesso `seq` e stesso `delta` → riconosciuto come duplicato. È idempotenza lato applicazione. |
-| Quanto costano le transazioni? | Il doppio di una scrittura normale (2 WCU per KB per item) e possono fallire per conflitti: le usiamo solo dove servono (pixel, tap, join). |
+| Quanto costano le transazioni? | Il doppio di una scrittura normale: 2 unità per KB per item (WRU in on-demand, WCU in provisioned — lo scontrino è in WRU perché lo stack del talk è on-demand). Possono anche fallire per conflitti: le usiamo solo dove servono (pixel, tap, join). |
 | On-demand o provisioned? | On-demand per il talk: nessuna capacità da stimare, paghi per richiesta. Provisioned 5/5 nello stack di prova, dentro il free tier. |
-| Come funziona il TTL? | Attributo `expiresAt` in secondi epoch; DynamoDB cancella gli item scaduti in background, di solito entro pochi giorni, senza consumare capacità. L'app filtra gli scaduti nel frattempo. |
+| Come funziona il TTL? | Attributo `expiresAt` in secondi epoch, **su ogni item**: due item della stessa tabella possono scadere in momenti diversi, ed è esattamente quello che fa la chiusura. DynamoDB cancella gli scaduti in background, di solito entro 48 h, senza consumare capacità. Nel frattempo ogni lettura li filtra. |
+| Ma allora i pallini che spariscono sono un trucco? | No: il backend riscrive davvero `expiresAt` di ogni pixel, distribuito sulla finestra della chiusura, e da quel momento nessuna lettura li restituisce più. È la stessa logica che qualunque applicazione con TTL deve avere: la cancellazione fisica non è istantanea, quindi non ci si può contare. |
+| Il costo che avete mostrato è vero? | Le quantità sì, misurate da DynamoDB a ogni chiamata; il prezzo è di listino. Il riquadro blu sono le stesse quantità secondo CloudWatch, cioè secondo AWS. La fattura vera è di solito zero, perché il free tier copre tutto. |
 | Come proteggete l'API? | Chiave admin in SSM Parameter Store (SecureString) letta dalla Lambda, mai nel frontend; CORS limitato al dominio CloudFront; throttling su API Gateway; ruolo Lambda con i soli permessi sulla tabella; input validati. |
 | Perché polling e non WebSocket? | Semplicità e robustezza su reti sconosciute: richieste HTTP normali, niente connessioni da mantenere, costi facili da stimare. Con migliaia di utenti passeremmo a WebSocket (API Gateway) o AppSync. |
-| Quanto scala? | DynamoDB scala orizzontalmente se le chiavi sono distribuite; nel nostro caso i limiti sono il throttling che abbiamo impostato (300 rps), la concorrenza Lambda dell'account e la hot key `STATS`. |
+| Quanto scala? | DynamoDB scala orizzontalmente se le chiavi sono distribuite; nel nostro caso i limiti sono il throttling che abbiamo impostato (1000 rps), la concorrenza Lambda dell'account e la hot key `STATS`. Il collo di bottiglia è il nostro modello dati, non il database. |
 | Cold start della Lambda? | Il primo invocazione di un container impiega qualche centinaio di ms in più (e legge la chiave da SSM). Prima del talk facciamo qualche chiamata per scaldarla. |
 | Come calcolate il costo in tempo reale? | Ogni chiamata chiede `ReturnConsumedCapacity`; sommiamo le unità di tabella e indici e moltiplichiamo per il listino di Francoforte. È una stima, non la fattura. |
 | Single-table design: pro e contro? | Pro: una Query restituisce entità correlate, una sola tabella da gestire. Contro: modello meno leggibile, difficile da cambiare, richiede di conoscere gli access pattern. |
 | E se AWS non funziona durante il talk? | Piano B: backend locale su DynamoDB Local (stesso codice), poi LIM in modalità statica, poi video. Vedi [troubleshooting](troubleshooting.md). |
+| I dati sono al sicuro? Quante copie? | DynamoDB replica ogni scrittura in modo sincrono su tre zone di disponibilità (data center distinti) della regione, senza che noi lo configuriamo. Una lettura eventualmente consistente può raggiungere una copia non ancora aggiornata: per questo `META` e la classifica finale le leggiamo in modo forte. |
 | Backup e disaster recovery? | Non attivati per dati che vivono 24 ore. In produzione si abilita il Point-in-Time Recovery (ripristino fino a 35 giorni). |
 
 ## Punti tecnici da non sbagliare
@@ -260,10 +286,12 @@ Grazie. Eravate già nel database.»
 3. L'hash delle squadre è **nostro**, non quello interno di DynamoDB.
 4. I GSI sono **eventualmente consistenti**; la classifica finale la leggiamo dalla tabella.
 5. Il costo è una **stima a listino**, non una fattura; ×1000 e ×1.000.000 sono **moltiplicazioni**, non test di carico.
-6. Il TTL cancella **in modo asincrono** (giorni), non allo scadere del secondo.
+6. Il TTL cancella **in modo asincrono**: la sparizione sullo schermo è il filtro dei lettori, non un `DELETE`. Dirlo, non nasconderlo — è il punto tecnico della slide.
 7. «Serverless» = nessun server **nostro** da gestire, non zero infrastruttura.
 8. Scrittura condizionale ≠ lock: nessuno aspetta, la seconda scrittura viene rifiutata.
-9. Se citate il picco del Prime Day, dite «secondo AWS» e verificate il numero dell'ultimo anno sul blog AWS prima del talk.
+9. Se citate il picco del Prime Day, dite «secondo AWS», e riverificate il link della fonte prima del talk.
+10. Il **2004** è la cornice narrativa del paper Dynamo, non un incidente che possiamo documentare: la slide e l'approfondimento lo dicono, ditelo anche voi.
+11. «Scala» e «costa poco» non sono la stessa cosa: a ×1.000.000 il conto si moltiplica ma la hot key `STATS` si romperebbe. Il prezzo scala da solo, il modello dati no.
 
 ## Se siamo in ritardo
 

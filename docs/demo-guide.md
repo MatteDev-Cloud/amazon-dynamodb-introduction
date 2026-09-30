@@ -15,6 +15,8 @@ Requisiti: Node.js 22+, npm, Docker Desktop avviato.
 
 Lo script avvia DynamoDB Local, crea `.env` e `frontend/.env.development` dagli esempi se mancano, crea la sessione e apre API e frontend in due finestre. Alla fine stampa gli URL.
 
+**Sul branch `prod` non c'è nessun emulatore**: niente `compose.yaml`, niente `.env.example`, niente server Node locale. Per provare da lì senza AWS restano le modalità **mock** e **statica** (sotto), che bastano per il copione e per il piano B. Per un database vero in locale si passa a `develop`.
+
 **A mano (qualsiasi branch tranne `prod`):**
 
 ```powershell
@@ -70,10 +72,15 @@ Dall'alto verso il basso:
 4. **Indietro / Avanti**: Avanti è il pulsante grande. Mentre il database risponde mostra «Attendo il database…»; un secondo Avanti premuto nel frattempo viene eseguito dopo, ma **non** fa mai partire da solo il round HOT KEY.
 5. **Cosa dire**: note della scena.
 6. **Pannelli di gioco** (compaiono quando servono): Pixel Wall con sciame «Completa il logo», mini-tela e moderazione; HOT KEY con «Avvia 3·2·1».
-7. **Emergenza** (sempre visibile): Stato sicuro, Nascondi tela, LIM statica / di nuovo live, Video di backup.
-8. **Strumenti e sessione** (chiuso): X-Ray, tassametro, bot runner, schermo intero, ricarica LIM, nuova sessione, cambio chiave (e, solo con il frontend in esecuzione locale, passaggio al backend locale).
-9. **Tutte le scene**: salto visivo (non cambia la fase).
-10. **Registro**: ultimi eventi ed errori.
+7. **Chiusura · TTL della tela** (solo nella scena finale): conto alla rovescia della dissolvenza, quanti item sono ancora vivi, e due pulsanti per **riavviare la dissolvenza** su 60 s o 3 minuti. Serve se si arriva alla chiusura in anticipo o se la riscrittura dei TTL è riuscita solo in parte.
+8. **Emergenza** (sempre visibile): Stato sicuro, Nascondi tela, LIM statica / di nuovo live, Video di backup.
+9. **Strumenti e sessione** (chiuso): X-Ray, tassametro, bot runner, schermo intero, **verifica del costo su AWS**, ricarica LIM, nuova sessione, cambio chiave (e, solo con il frontend in esecuzione locale, passaggio al backend locale).
+10. **Tutte le scene**: salto visivo (non cambia la fase).
+11. **Registro**: ultimi eventi ed errori.
+
+**Stato «LIM collegata».** La regia interroga la LIM ogni 1,5 s e misura la risposta sull'orologio locale, non su quello corretto dal server. Due conseguenze volute: la LIM risulta collegata anche quando il sistema operativo la considera nascosta (schermo intero dietro la regia) e ne rallenta i timer, e un orologio di Windows disallineato non la fa più sembrare morta — al massimo compare l'avviso «Orologio locale fuori di N s», che non blocca niente.
+
+**Verifica del costo su AWS.** Legge da CloudWatch le stesse grandezze dello scontrino (WRU, RRU, richieste, durata Lambda) e le scrive nel registro. Serve per controllare prima di mostrarle in sala. Gli stessi numeri compaiono da soli nella scena del costo, in un riquadro blu, quando CloudWatch risponde: hanno 1–3 minuti di ritardo e si riferiscono alla tabella e alla funzione, non alla singola sessione.
 
 **Conferme.** Le azioni irreversibili o che interrompono la LIM (congela, cancella rettangolo, escludi autore, ricarica LIM, nuova sessione, backend locale, LIM statica, azzera cronometro) chiedono un secondo clic entro 4 secondi: il pulsante diventa rosso e dice «Conferma…». Le azioni di emergenza rapide (Stato sicuro, Nascondi tela) non chiedono conferma.
 
@@ -117,5 +124,5 @@ Un telecomando da presentazione (che invia PagGiù/PagSu) funziona su entrambe l
 
 ## Bot
 
-- **Sciame** (regia, «Completa il logo»): 4–40 giocatori virtuali che accendono le celle mancanti attraverso la stessa API. Si chiamano `bot.01…`: dichiararlo al pubblico.
+- **Sciame** (regia, «Completa il logo»): 4–40 giocatori virtuali che accendono le celle mancanti attraverso la stessa API. Si chiamano `bot.01…`: dichiararlo al pubblico. Non vengono contati fra le «persone in sala» né in regia né sulla scena del costo; la regia li mostra a parte («12 in sala + 16 virtuali»).
 - **Bot runner** (terminale, pochi giocatori reali): `npm run bot:runner -- --sid SID --n 20 --api URL`, poi «Bot runner: on» in regia.

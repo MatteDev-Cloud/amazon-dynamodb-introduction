@@ -10,6 +10,8 @@ param(
   [Alias('Profile')][string]$AwsProfile = $Environment,
   [string]$Region = 'eu-central-1',
   [ValidatePattern('^[A-Za-z0-9_-]{1,48}$')][string]$Sid,
+  # Durata della dissolvenza finale: su quanti secondi vengono distribuiti i TTL dei pixel nella scena di chiusura.
+  [ValidateRange(5, 3600)][int]$EndTtlSeconds = 60,
   [switch]$CopyKey
 )
 . (Join-Path $PSScriptRoot 'aws-common.ps1')
@@ -26,7 +28,7 @@ if ($Sid) {
   Step "Sessione $Sid"
   # The key reaches the child process through its environment only, never through the command line or the console.
   $env:ADMIN_KEY = $key
-  try { $result = Get-NativeOutput { npx tsx scripts/reset-session.ts --sid $Sid --api $outputs.ApiUrl } }
+  try { $result = Get-NativeOutput { npx tsx scripts/reset-session.ts --sid $Sid --api $outputs.ApiUrl --endTtlMs ($EndTtlSeconds * 1000) } }
   finally { Remove-Item Env:ADMIN_KEY -ErrorAction SilentlyContinue }
   $status = ($result.Output.Trim() -split '\s', 2)[0]
   if ($status -eq '201') { Write-Host "Sessione $Sid creata." -ForegroundColor Green }
@@ -41,6 +43,7 @@ if ($Sid) {
   Write-Host ""
   Write-Host "  LIM      $($outputs.SiteUrl)/stage?s=$Sid   (R per la regia)"
   Write-Host "  Telefono $($outputs.SiteUrl)/play?s=$Sid"
+  Write-Host "  Chiusura Dissolvenza finale su $EndTtlSeconds s (si puo riavviare dalla regia)"
 }
 
 if ($CopyKey) {

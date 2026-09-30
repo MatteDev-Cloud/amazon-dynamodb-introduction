@@ -5,7 +5,7 @@ import { config, read, save } from './config';
 import { ApiFailure } from './api';
 interface MockDB {meta:Meta;players:Player[];pixels:RawPixel[];taps:number;orange:number;purple:number;pixelCount:number;conflicts:number}
 const key=`dynamolive:mockdb:${config.sid}`;
-function initial():MockDB {const now=Date.now();return {meta:{sid:config.sid,phase:'lobby',version:1,phaseStartedAt:now,phaseEndsAt:null,canvasW:LOGO_W,canvasH:LOGO_H,cooldownMs:500,roundMs:15000,pixelMs:90000,canvasHidden:false,canvasRevision:0,teamsRevealed:false,roundId:null,roundStartedAt:null,roundEndsAt:null,tapGraceMs:2000,expiresAt:Math.floor(now/1000)+86400,prompt:'Accendete il logo',botsEnabled:false},players:[],pixels:[],taps:0,orange:0,purple:0,pixelCount:0,conflicts:0};}
+function initial():MockDB {const now=Date.now();return {meta:{sid:config.sid,phase:'lobby',version:1,createdAt:now,phaseStartedAt:now,phaseEndsAt:null,canvasW:LOGO_W,canvasH:LOGO_H,cooldownMs:500,roundMs:15000,pixelMs:90000,canvasHidden:false,canvasRevision:0,teamsRevealed:false,roundId:null,roundStartedAt:null,roundEndsAt:null,tapGraceMs:2000,expiresAt:Math.floor(now/1000)+86400,canvasExpiresAt:Math.floor(now/1000)+86400,endTtlMs:60000,prompt:'Accendete il logo',botsEnabled:false},players:[],pixels:[],taps:0,orange:0,purple:0,pixelCount:0,conflicts:0};}
 export async function mockTransport(path:string, body?:any):Promise<any>{
   const db=read<MockDB>(key,initial()),m=db.meta,now=Date.now();path=path.split('?')[0];
   const fail=(status:number,message:string,retry=0,code=''):never=>{throw new ApiFailure(status,message,retry,code);};
@@ -26,20 +26,33 @@ export async function mockTransport(path:string, body?:any):Promise<any>{
     if(body.phase!==m.phase){m.phase=body.phase;m.version++;m.phaseStartedAt=now;m.phaseEndsAt=m.phase==='pixel'?now+m.pixelMs:m.phase==='hotkey_running'?now+m.roundMs:null;
       if(m.phase==='talk')m.teamsRevealed=true;
       if(m.phase==='hotkey_running'){m.roundId=crypto.randomUUID();m.roundStartedAt=now;m.roundEndsAt=m.phaseEndsAt;}
-      if(m.phase==='hotkey_end')m.roundEndsAt=Math.min(m.roundEndsAt||now,now);}
+      if(m.phase==='hotkey_end')m.roundEndsAt=Math.min(m.roundEndsAt||now,now);
+      if(m.phase==='end'){
+        // Mirror of the real closing: each item gets its own short expiresAt, spread over endTtlMs.
+        m.canvasExpiresAt=Math.floor((now+m.endTtlMs)/1000);m.canvasRevision++;
+        const visible=db.pixels.filter(p=>!p.deleted).sort((a,b)=>a.updatedAt-b.updatedAt);
+        visible.forEach((p,i)=>{p.expiresAt=Math.floor((now+(i+1)/visible.length*m.endTtlMs)/1000);});
+      }}
     result=m;
+  }else if(path==='/admin/dissolve'){
+    if(m.phase!=='end')fail(409,'La dissolvenza appartiene alla fase finale',0,'WRONG_PHASE');
+    m.endTtlMs=body?.endTtlMs??m.endTtlMs;m.canvasExpiresAt=Math.floor((now+m.endTtlMs)/1000);m.canvasRevision++;m.version++;
+    const alive=db.pixels.filter(p=>!p.deleted&&p.expiresAt>now/1000).sort((a,b)=>a.updatedAt-b.updatedAt);
+    alive.forEach((p,i)=>{p.expiresAt=Math.floor((now+(i+1)/alive.length*m.endTtlMs)/1000);});
+    result={...m,dissolving:alive.length};
   }else if(path==='/admin/hide'){m.canvasHidden=body.hidden;m.version++;result=m;}
   else if(path==='/admin/bots'){m.botsEnabled=body.enabled;m.version++;result=m;}
   else if(path==='/admin/ban'){player(body.pid).banned=true;result={ok:true};}
   else if(path==='/admin/clear'){
     if(m.phase==='pixel')fail(409,'Congelare prima la tela');
     const before=db.pixels.length;db.pixels=db.pixels.filter(p=>!(p.x>=body.x1&&p.x<=body.x2&&p.y>=body.y1&&p.y<=body.y2));m.canvasRevision++;result={deleted:before-db.pixels.length,canvasRevision:m.canvasRevision};
-  }else if(path==='/canvas'||path==='/canvas/changes')result={pixels:m.canvasHidden?[]:db.pixels.map(p=>({x:p.x,y:p.y,c:p.color,by:p.by,t:p.updatedAt})),cursor:now,canvasRevision:m.canvasRevision,hidden:m.canvasHidden,full:true};
+  }else if(path==='/canvas'||path==='/canvas/changes')result={pixels:m.canvasHidden?[]:db.pixels.filter(p=>p.expiresAt>now/1000).map(p=>({x:p.x,y:p.y,c:p.color,by:p.by,t:p.updatedAt,e:p.expiresAt})),cursor:now,canvasRevision:m.canvasRevision,hidden:m.canvasHidden,full:true};
+  else if(path==='/admin/aws')result={available:false,reason:'NO_CLOUDWATCH',prices:PRICES,scope:'table-and-functions-in-region'};
   else if(path==='/pixel'){
     const p=player(body.pid);if(p.banned)fail(403,'Giocatore escluso',0,'BANNED');if(m.phase!=='pixel')fail(409,'Tela congelata',0,'WRONG_PHASE');const color=logoColor(body.x,body.y);if(color===null)fail(400,'Cella fuori dal logo',0,'NOT_IN_LOGO');if(body.c!==undefined&&body.c!==color)fail(400,'Colore diverso dal logo',0,'WRONG_COLOR');if(now<(p.lastPixelAt||0)+m.cooldownMs)fail(429,'Attendi il cooldown',(p.lastPixelAt||0)+m.cooldownMs-now,'COOLDOWN');
     if(db.pixels.some(v=>v.x===body.x&&v.y===body.y&&!v.deleted)){db.conflicts=(db.conflicts||0)+1;save(key,db);fail(409,'Cella già accesa da qualcun altro',0,'PIXEL_TAKEN');}
     p.lastPixelAt=now;p.pixelsPlaced=(p.pixelsPlaced||0)+1;db.pixelCount++;
-    const raw:RawPixel={PK:`CANVAS#${m.sid}`,SK:`PX#${String(body.x).padStart(3,'0')}#${String(body.y).padStart(3,'0')}`,x:body.x,y:body.y,color:color!,by:p.nickname,byId:p.pid,cv:m.sid,updatedAt:now,expiresAt:m.expiresAt};db.pixels=db.pixels.filter(v=>v.x!==body.x||v.y!==body.y);db.pixels.push(raw);result={ok:true,nextAllowedAt:now+m.cooldownMs};
+    const raw:RawPixel={PK:`CANVAS#${m.sid}`,SK:`PX#${String(body.x).padStart(3,'0')}#${String(body.y).padStart(3,'0')}`,x:body.x,y:body.y,color:color!,by:p.nickname,byId:p.pid,cv:m.sid,updatedAt:now,expiresAt:m.canvasExpiresAt};db.pixels=db.pixels.filter(v=>v.x!==body.x||v.y!==body.y);db.pixels.push(raw);result={ok:true,nextAllowedAt:now+m.cooldownMs};
   }else if(path.startsWith('/pixel/')){const [, ,x,y]=path.split('/');result=db.pixels.find(p=>p.x===+x&&p.y===+y)||fail(404,'Pixel vuoto');}
   else if(path==='/tap'){
     const b=body as TapRequest,p=player(b.pid);if(p.banned)fail(403,'Giocatore escluso');

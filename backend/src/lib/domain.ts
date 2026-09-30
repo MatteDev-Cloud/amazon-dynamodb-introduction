@@ -27,12 +27,15 @@ export function secretMatches(a: string | undefined, b: string): boolean {
 }
 export function makeMeta(sid: string, input: SessionConfig, now: number): Meta {
   const config = (name: keyof SessionConfig, fallback: number, min: number, max: number) => integer(input[name] ?? fallback, min, max, name);
+  const expiresAt = Math.floor(now/1000)+86400;
   return {
-    sid, phase: 'lobby', version: 1, phaseStartedAt: now, phaseEndsAt: null,
+    sid, phase: 'lobby', version: 1, createdAt: now, phaseStartedAt: now, phaseEndsAt: null,
     canvasW: config('canvasW',LOGO_W,1,LOGO_W), canvasH: config('canvasH',LOGO_H,1,LOGO_H),
     cooldownMs: config('cooldownMs',500,100,60000), roundMs: config('roundMs',15000,1000,60000), pixelMs: config('pixelMs',90000,1000,300000),
     canvasHidden: false, canvasRevision: 0, teamsRevealed: false, roundId: null, roundStartedAt: null, roundEndsAt: null,
-    tapGraceMs: 2000, expiresAt: Math.floor(now/1000)+86400,
+    tapGraceMs: 2000, expiresAt,
+    // The canvas lives as long as the session until the closing scene shortens its TTL (see the `end` transition).
+    canvasExpiresAt: expiresAt, endTtlMs: config('endTtlMs',60000,5000,3600000),
     prompt: input.prompt === undefined ? 'Accendete il logo' : text(input.prompt, /^.{1,120}$/u, 'prompt'), botsEnabled: false,
   };
 }

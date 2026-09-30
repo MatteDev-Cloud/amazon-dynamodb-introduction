@@ -51,6 +51,12 @@
       </span>
     {/each}
     {#if extra}<p class="extra mono">+ {extra} altri</p>{/if}
+    {#if step === 0 && placed}
+      <div class="why" use:reveal={{ delay: 2.6 }}>
+        <p class="display">Aggiungere cassetti è facile.</p>
+        <p class="muted">Ingrandire un cassetto solo, no: è lì che un database relazionale trova il suo tetto. Il prezzo di questa crescita sono le domande, che devono stare dentro un cassetto.</p>
+      </div>
+    {/if}
   </div>
 
   {#if step === 1}
@@ -94,6 +100,9 @@
   .chip.purple { background: var(--purple); border-color: var(--purple); color: #fff; }
   .chip.orange i, .chip.purple i { color: #ffffffb0; }
   .extra { position: absolute; left: 0; top: 560px; font-size: 18px; color: var(--muted); margin: 0; }
+  .why { position: absolute; left: 0; top: 170px; width: 490px; }
+  .why .display { font-size: 42px; margin: 0; font-weight: 500; line-height: 1.1; letter-spacing: -.02em; }
+  .why .muted { font-size: 24px; line-height: 1.4; margin: 14px 0 0; }
   .inside { position: absolute; right: 0; top: 250px; width: 780px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 26px; padding: 28px 34px; box-shadow: 10px 10px 0 var(--ink); z-index: 2; }
   .inside ol { list-style: none; padding: 0; margin: 16px 0; font-size: 26px; }
   .inside li { display: flex; justify-content: space-between; padding: 9px 0; border-top: 1px solid var(--line); animation: fade-up .6s var(--ease-out) both; }

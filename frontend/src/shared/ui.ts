@@ -6,3 +6,5 @@ export const number = (value: number, digits = 0) => value.toLocaleString('it-IT
 export const usd = (value: number, digits = 4) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
 export const clock = (ms: number) => new Date(ms).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 export const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Swarm workers join as ordinary players (`bot.07`): they are never part of «persone in sala». */
+export const isBot = (nickname: string) => /^bot[.\d]/i.test(nickname);

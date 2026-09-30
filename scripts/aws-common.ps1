@@ -33,11 +33,23 @@ function Assert-Identity([string]$awsProfile, [string]$region) {
   Write-Host "Account $account · profilo $awsProfile · regione $region"
 }
 
-function Get-StackOutputs([string]$stack, [string]$awsProfile, [string]$region) {
+function Get-StackStatus([string]$stack, [string]$awsProfile, [string]$region) {
+  $result = Get-NativeOutput { aws cloudformation describe-stacks --stack-name $stack --profile $awsProfile --region $region --query 'Stacks[0].StackStatus' --output text }
+  if ($result.Ok) { return $result.Output.Trim() } else { return 'ASSENTE' }
+}
+
+function Get-StackOutputs([string]$stack, [string]$awsProfile, [string]$region, [string[]]$Require = @()) {
   $result = Get-NativeOutput { aws cloudformation describe-stacks --stack-name $stack --profile $awsProfile --region $region --query 'Stacks[0].Outputs' --output json }
   if (-not $result.Ok) { throw "Stack $stack non trovato: esegui prima scripts/deploy-aws.ps1" }
   $outputs = @{}
   foreach ($item in ($result.Output | ConvertFrom-Json)) { $outputs[$item.OutputKey] = $item.OutputValue }
+  # Uno stack esiste anche senza Outputs: fermo in REVIEW_IN_PROGRESS (change set creato e mai eseguito),
+  # oppure a meta di un rollback. Senza questo controllo lo script proseguiva e scriveva un .env con URL vuoti.
+  foreach ($key in $Require) {
+    if (-not $outputs[$key]) {
+      throw "Lo stack $stack non espone l'output '$key' (stato: $(Get-StackStatus $stack $awsProfile $region)). Il deploy non e stato completato."
+    }
+  }
   return $outputs
 }
 

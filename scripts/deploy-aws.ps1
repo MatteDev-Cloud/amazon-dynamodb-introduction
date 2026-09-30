@@ -39,8 +39,15 @@ elseif ($existing.Error -match 'ParameterNotFound') {
 }
 else { throw "Lettura di $parameter non riuscita: $($existing.Error)" }
 
+Step 'Verifiche prima del deploy (typecheck e test: niente deploy di codice rotto)'
+Invoke-Native { npm run typecheck } 'Typecheck del backend non riuscito'
+Invoke-Native { npm test } 'Test del backend non superati'
+Invoke-Native { npm --prefix frontend run typecheck } 'Typecheck del frontend non riuscito'
+Invoke-Native { npm --prefix frontend test } 'Test del frontend non superati'
+
 Step 'Build del backend'
 Invoke-Native { npm run build:backend } 'Build del backend non riuscita'
+if (-not (Test-Path (Join-Path $root 'backend/dist/handler.js'))) { throw 'backend/dist/handler.js assente: il template SAM cerca handler.handler' }
 
 Step "sam deploy ($stack) · rivedi il change set e conferma"
 $overrides = @("Environment=$Environment")
@@ -54,7 +61,13 @@ try {
   if ($code -ne 0) { throw 'sam deploy non riuscito o annullato' }
 } finally { Pop-Location }
 
-$outputs = Get-StackOutputs $stack $AwsProfile $Region
+# «sam deploy» esce con 0 anche quando si risponde N al change set. Senza questo controllo lo script
+# proseguiva a compilare e pubblicare il frontend contro uno stack che non e mai stato creato.
+$status = Get-StackStatus $stack $AwsProfile $Region
+if ($status -eq 'REVIEW_IN_PROGRESS') { throw "Change set non applicato (risposto N?): lo stack $stack e fermo in REVIEW_IN_PROGRESS. Rilancia e conferma con y." }
+if ($status -notin @('CREATE_COMPLETE', 'UPDATE_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE')) { throw "Lo stack $stack e in stato ${status}: controlla gli eventi in CloudFormation prima di riprovare." }
+
+$outputs = Get-StackOutputs $stack $AwsProfile $Region -Require 'ApiUrl', 'SiteUrl', 'SiteBucketName', 'DistributionId'
 if ($SkipFrontend) { Write-Host "`nBackend pronto: $($outputs.ApiUrl)"; return }
 
 Step "Configurazione frontend (frontend/.env.$Environment, ignorato da git)"
@@ -82,8 +95,14 @@ Step 'Build del frontend'
 Invoke-Native { npm --prefix frontend run "build:$Environment" } 'Build del frontend non riuscita'
 
 Step 'Pubblicazione su S3 e invalidazione CloudFront'
-Invoke-Native { aws s3 sync frontend/dist "s3://$($outputs.SiteBucketName)" --profile $AwsProfile --region $Region --only-show-errors } 'Upload su S3 non riuscito'
+# --delete: senza di esso un file rinominato resta servibile nel bucket e puo tornare a galla dopo un deploy.
+Invoke-Native { aws s3 sync frontend/dist "s3://$($outputs.SiteBucketName)" --delete --profile $AwsProfile --region $Region --only-show-errors } 'Upload su S3 non riuscito'
 Invoke-Native { aws cloudfront create-invalidation --distribution-id $outputs.DistributionId --paths '/*' --profile $AwsProfile --query 'Invalidation.Id' --output text } 'Invalidazione CloudFront non riuscita'
+
+Step 'Controlli finali'
+if (-not (Test-Path (Join-Path $root 'frontend/public/backup.mp4'))) {
+  Write-Host "ATTENZIONE: frontend/public/backup.mp4 manca. Il piano B di livello 5 (video) non funzionera." -ForegroundColor Yellow
+}
 
 Write-Host "`nDeploy completato." -ForegroundColor Green
 Write-Host "  Sito     $($outputs.SiteUrl)   (il primo deploy di CloudFront può richiedere 5-15 minuti)"

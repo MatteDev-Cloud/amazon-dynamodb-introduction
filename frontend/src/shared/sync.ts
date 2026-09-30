@@ -35,6 +35,13 @@ export class CanvasSync {
   }
   private primed = false;
 
+  /** Applies the per-item TTL locally so the closing dissolve is smooth between polls. */
+  expire(now: number) {
+    if (!this.state.expire(now)) return false;
+    this.emit([], false);
+    return true;
+  }
+
   /** Local optimistic insert (swarm, phone) before the next poll confirms it. */
   add(pixel: Pixel) {
     const key = `${pixel.x},${pixel.y}`, old = this.state.pixels.get(key);

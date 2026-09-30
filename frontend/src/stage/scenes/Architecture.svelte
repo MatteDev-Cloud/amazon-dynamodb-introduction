@@ -30,7 +30,7 @@
     { name: 'Telefono', sub: 'il vostro browser', value: session.players.length, unit: 'giocatori' },
     { name: 'HTTP API', sub: 'API Gateway', value: stats?.apiCalls ?? 0, unit: 'richieste' },
     { name: 'Funzione', sub: 'AWS Lambda', value: (stats?.lambdaMs ?? 0) / 1000, unit: 's di calcolo', digits: 1 },
-    { name: 'Tabella', sub: 'DynamoDB', value: (stats?.wruTable ?? 0) + (stats?.wruGsi ?? 0) + (stats?.rruTable ?? 0) + (stats?.rruGsi ?? 0), unit: 'unità lette/scritte', digits: 1 },
+    { name: 'Tabella', sub: 'DynamoDB · replicata su 3 data center', value: (stats?.wruTable ?? 0) + (stats?.wruGsi ?? 0) + (stats?.rruTable ?? 0) + (stats?.rruGsi ?? 0), unit: 'unità lette/scritte', digits: 1 },
   ]);
 </script>
 
@@ -69,7 +69,8 @@
   .phone { width: 62px; height: 104px; border: 5px solid var(--ink); border-radius: 14px; }
   .cyl { width: 84px; height: 96px; border: 5px solid var(--blue); border-radius: 50% / 18%; background: repeating-linear-gradient(transparent 0 26px, var(--blue) 26px 31px); }
   .name { font-size: 48px; margin: 26px 0 0; font-weight: 500; }
-  .sub { font-size: 20px; color: var(--muted); margin: 6px 0 16px; }
+  /* Two lines reserved: the DynamoDB caption wraps, and the numbers below must still line up. */
+  .sub { font-size: 20px; line-height: 1.3; color: var(--muted); margin: 6px 0 16px; min-height: 2.6em; }
   .val { font-size: 22px; color: var(--ink-2); margin: 0; }
   .val b { font-size: 34px; color: var(--ink); display: block; }
   .bottom { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: end; gap: 60px; }

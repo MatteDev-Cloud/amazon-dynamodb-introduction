@@ -71,7 +71,8 @@ Preferiamo credenziali **temporanee** via SSO invece di access key a lunga scade
       "Resource": "arn:aws:ssm:eu-central-1:*:parameter/dynamolive/*" },
     { "Effect": "Allow", "Action": ["logs:FilterLogEvents", "logs:GetLogEvents", "logs:DescribeLogStreams"],
       "Resource": "arn:aws:logs:eu-central-1:*:log-group:/aws/lambda/dynamolive-*" },
-    { "Effect": "Allow", "Action": ["cloudwatch:GetMetricData", "dynamodb:DescribeTable"], "Resource": "*" }
+    { "Effect": "Allow", "Action": ["cloudwatch:GetMetricData", "dynamodb:DescribeTable"], "Resource": "*" },
+    { "Effect": "Allow", "Action": ["ce:GetCostAndUsage"], "Resource": "*" }
   ]
 }
 ```
@@ -106,7 +107,7 @@ Variabili d'ambiente utili nel terminale (non in file versionati):
 ## 7. Quote e crediti (manuale, console)
 
 - *Lambda → Dashboard → Account-level concurrency*: gli account nuovi a volte hanno **10** esecuzioni concorrenti. Con 60 telefoni servono ~10–20: se il valore è basso chiedi l'aumento a 100+ da *Service Quotas → AWS Lambda → Concurrent executions* **con giorni di anticipo**.
-- *API Gateway*: il template limita a 300 richieste/s (burst 500). Ogni telefono fa ~3 richieste/s al picco: oltre ~80 persone aumenta `ThrottlingRateLimit` in `infra/template.yaml`.
+- *API Gateway*: il template limita a 1000 richieste/s (burst 2000). Ogni telefono fa ~3 richieste/s al picco, LIM e regia ~6 ciascuna: con 60 persone si sta intorno alle 250/s. Il limite non si paga (si paga per richiesta), ed è tenuto largo apposta: una richiesta throttlata dal gateway sul proiettore sembra un guasto.
 - DynamoDB on-demand in `live`: nessuna capacità da prenotare.
 
 ## 8. Segreto admin in SSM Parameter Store
@@ -138,11 +139,13 @@ Cosa fa lo script, in ordine:
 
 1. Controlla CLI e identità (`sts get-caller-identity`).
 2. Crea il parametro SSM se manca.
-3. Compila il backend (`npm run build:backend` → `backend/dist/handler.cjs`).
+3. Esegue typecheck e test di backend e frontend, poi compila il backend (`npm run build:backend` → `backend/dist/handler.js`). Se una verifica fallisce il deploy si ferma prima di toccare AWS.
 4. `sam deploy --config-env <env>`: mostra il change set e chiede conferma.
 5. Legge gli output dello stack (`ApiUrl`, `SiteUrl`, `SiteBucketName`, `DistributionId`).
 6. Scrive `frontend/.env.<env>` (ignorato da git) con `VITE_API_BASE` e `VITE_PUBLIC_ORIGIN`.
-7. Compila il frontend (`build:<env>`), lo carica su S3 e invalida la cache di CloudFront.
+7. Compila il frontend (`build:<env>`), lo carica su S3 con `--delete` e invalida la cache di CloudFront.
+
+La build del frontend **fallisce apposta** se `VITE_API_BASE` o `VITE_PUBLIC_ORIGIN` mancano, contengono ancora un segnaposto o non sono HTTPS: senza questo controllo una build distratta produce un bundle che punta a `localhost:3001` e lo si scopre dal proiettore.
 
 Il primo deploy di CloudFront richiede 5–15 minuti. Stack `dev` = tabella provisioned 5/5 (nel free tier), CORS anche da `localhost:5173`; stack `live` = on-demand, CORS solo dal dominio CloudFront.
 
@@ -156,7 +159,10 @@ Ogni sessione ha un `sid` e non si sovrascrive mai. Crea quella del talk il gior
 ```powershell
 ./scripts/new-session-aws.ps1 -Environment live -Sid talk-01
 ./scripts/new-session-aws.ps1 -Environment live -Sid talk-02    # di riserva
+./scripts/new-session-aws.ps1 -Environment live -Sid talk-01 -EndTtlSeconds 90   # chiusura più lenta
 ```
+
+`-EndTtlSeconds` (default 60) è la durata della **dissolvenza finale**: entrando nella scena di chiusura il backend accorcia il TTL di ogni pixel distribuendolo su quella finestra, e la tela si cancella da sola sullo schermo. Si può cambiare anche dal vivo, dalla regia (pannello «Chiusura»).
 
 URL per la LIM: `https://<SiteUrl>/stage?s=talk-01` (poi **R** per la regia). Il QR per i telefoni lo genera la LIM.
 
@@ -167,10 +173,29 @@ URL per la LIM: `https://<SiteUrl>/stage?s=talk-01` (poi **R** per la regia). Il
   ```powershell
   aws logs tail /aws/lambda/<funzione> --since 15m --profile live --follow
   ```
-- **Monitoraggio**: *CloudWatch → Metrics*: Lambda `Errors`, `Throttles`, `Duration`; API Gateway `5xx`, `Count`; DynamoDB `ThrottledRequests`. Per il talk basta la regia (latenza e stato API in alto) più `logs tail` su un portatile.
+- **Monitoraggio**: *CloudWatch → Metrics*: Lambda `Errors`, `Throttles`, `Duration`; API Gateway `5xx`, `Count`; DynamoDB `ThrottledRequests`. Per il talk basta la regia (latenza e stato API in alto) più `logs tail` su un portatile. Le stesse metriche si leggono dall'app con `GET /admin/aws` (pulsante «Verifica il costo su AWS» in regia) e da terminale con `./scripts/aws-cost.ps1`.
 - **Errori gestiti**: timeout client 5 s con retry e backoff; `503 BACKEND_UNAVAILABLE` con `retryInMs` per errori AWS temporanei; `503 CONFIG_UNAVAILABLE` se SSM non risponde al cold start (ritenta alla richiesta successiva); `429` rispettato dai client; `409` per conflitti attesi (pixel preso, fase cambiata). Lambda timeout 5 s, SSM timeout 3 s, SDK DynamoDB 3 tentativi.
 
 ## 12. Costi
+
+### Le tre cifre, e perché non coincidono
+
+| Cifra | Dove si vede | Cosa è davvero | Ritardo |
+| --- | --- | --- | --- |
+| **Scontrino della LIM** | scena «Il conto» | capacità che il backend ha *osservato* (`ReturnConsumedCapacity`) × listino pubblicato. Quantità misurate, prezzi di listino. Leggermente per difetto: il contatore è bufferizzato per container Lambda. | nessuno |
+| **Verifica AWS** | stessa scena, riquadro blu · regia · `./scripts/aws-cost.ps1` | le stesse grandezze **secondo CloudWatch**: è AWS a dichiararle. Riferite alla tabella e alla funzione, non alla singola sessione: durante un talk ne gira una sola. | 1–3 minuti |
+| **Fattura** | Cost Explorer · `./scripts/aws-cost.ps1 -Billed` | quello che AWS addebita davvero, **dopo** free tier, crediti e imposte. Spesso è zero, e zero è il risultato giusto. | 24–48 ore |
+
+Lo scontrino è quindi onesto come stima e verificabile come misura. La riga che vale la pena dire ad alta voce è: «le quantità non ce le siamo inventate, e se non ci credete ecco gli stessi numeri letti da AWS».
+
+```powershell
+./scripts/aws-cost.ps1 -Environment live -AwsProfile live            # quantità, subito dopo il talk
+./scripts/aws-cost.ps1 -Environment live -AwsProfile live -Billed    # + fattura reale (0,01 USD di chiamata)
+```
+
+Attenzione: **ogni chiamata a Cost Explorer costa 0,01 USD** e va abilitato una volta dalla console (*Billing → Cost Explorer*); `GetMetricData` costa 0,01 USD ogni 1.000 metriche richieste, cioè nulla a questi volumi.
+
+### Stima a priori
 
 | Voce | Stima per un talk (60 persone, 15 min) | Note |
 | --- | --- | --- |
@@ -180,7 +205,7 @@ URL per la LIM: `https://<SiteUrl>/stage?s=talk-01` (poi **R** per la regia). Il
 | CloudFront + S3 | ~0 | Nel free tier |
 | SSM Standard, CloudWatch Logs (7 giorni) | ~0 | |
 
-Totale atteso: **sotto 1 USD per talk**. Le prove su `dev` (provisioned 5/5) restano nel free tier. Il budget del template avvisa oltre 1 USD (dev) o 2 USD (live) al mese; **avvisa soltanto, non blocca**. Dopo il talk: controlla *Cost Explorer* dopo 24–48 h.
+Totale atteso: **sotto 1 USD per talk**. Le prove su `dev` (provisioned 5/5) restano nel free tier. Il budget del template avvisa al 50 % e al 100 % del consuntivo e sulla **previsione** del mese, oltre 1 USD (dev) o 2 USD (live); **avvisa soltanto, non blocca**. Su un account con 20–50 USD di credito l'avviso sulla previsione è l'unico che arriva in tempo per fare qualcosa. Dopo il talk: `./scripts/aws-cost.ps1` subito per le quantità, Cost Explorer dopo 24–48 h per la fattura.
 
 Tabella e bucket hanno `DeletionPolicy: Retain`: eliminare lo stack non li cancella. Per azzerare i costi dopo il progetto: `sam delete`, poi svuota ed elimina il bucket, elimina la tabella e il parametro SSM.
 

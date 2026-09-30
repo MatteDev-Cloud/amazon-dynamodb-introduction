@@ -63,15 +63,24 @@ export class RequestDb {
     return {...last,ddbMs:this.operations.reduce((n,o)=>n+o.ddbMs,0),operations:this.operations};
   }
 }
-/** Only economic estimates are buffered. Game counters are persisted transactionally. */
+/**
+ * Only economic estimates are buffered. Game counters are persisted transactionally.
+ *
+ * The buffer exists so that measuring does not dominate what it measures: one extra write per request would
+ * cost more than most requests do. The price is that a Lambda container which is never invoked again keeps
+ * whatever it had not flushed, so the app's own total is a slight *under*count. BATCH bounds that loss, and
+ * GET /admin/aws reads the same quantities back from CloudWatch as a check.
+ */
+const BATCH = 20;
 export class Meter {
   private pending = new Map<string,{values:Counters;flushed:number;busy:boolean}>();
   async record(sid: string, db: RequestDb, elapsed: number, now: number) {
     let state = this.pending.get(sid);
-    if (!state) { state={values:zero(),flushed:now,busy:false}; this.pending.set(sid,state); }
+    // A cold container flushes on its very first chance instead of waiting: it may not get a second request.
+    if (!state) { state={values:zero(),flushed:0,busy:false}; this.pending.set(sid,state); }
     const delta = {...db.counters,apiCalls:1,lambdaMs:elapsed};
     for (const k of Object.keys(delta) as (keyof Counters)[]) state.values[k]+=delta[k];
-    if (state.busy || now-state.flushed<2000) return;
+    if (state.busy || (now-state.flushed<2000 && state.values.apiCalls<BATCH)) return;
     state.busy=true; const snapshot=state.values; state.values=zero();
     try {
       const fields=Object.keys(snapshot) as (keyof Counters)[];
