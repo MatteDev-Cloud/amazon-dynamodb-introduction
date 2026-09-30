@@ -2,6 +2,8 @@
 
 Guida per preparare l'ambiente AWS di DynamoLive partendo da un account vuoto. Gli script citati (`deploy-aws.ps1`, `new-session-aws.ps1`) sono sul branch **`prod`**.
 
+> **Account singolo con piano Free (settembre 2026):** non creare AWS Organizations solo per ottenere IAM Identity Center. AWS avverte che la creazione dell'Organization può convertire il piano in pay-as-you-go e far scadere subito i crediti Free. Per un singolo account usa un utente IAM amministrativo dedicato con MFA e `aws login --profile live`, che fornisce credenziali temporanee tramite browser. La sezione Identity Center qui sotto si applica se hai già un'Organization o hai scelto consapevolmente il piano a pagamento. Un'istanza *account* di Identity Center non supporta permission set né accesso all'account AWS.
+
 > Regola d'oro: nel repository non finiscono **mai** chiavi di accesso, la chiave admin, file `.env`, file `~/.aws/*`, output con segreti. Le variabili `VITE_*` del frontend sono pubbliche per definizione: non metterci segreti.
 
 ## 1. Cosa creiamo
@@ -14,7 +16,7 @@ Guida per preparare l'ambiente AWS di DynamoLive partendo da un account vuoto. G
 | **S3** | Bucket privato cifrato | Ospita il frontend compilato | Vite dev server | SAM + `aws s3 sync` |
 | **CloudFront** | Distribuzione HTTPS con OAC | HTTPS obbligatorio per i telefoni, cache, dominio pubblico | `http://localhost:5173` | SAM |
 | **SSM Parameter Store** | `SecureString /dynamolive/<env>/admin-key` | Segreto admin fuori da codice e variabili | `ADMIN_KEY` in `.env` | Script (o console) **prima** del deploy |
-| **IAM** | Ruolo della Lambda (automatico) + accesso umano | Minimo privilegio | nessuno | SAM + console (Identity Center) |
+| **IAM** | Ruolo della Lambda (automatico) + accesso umano | Minimo privilegio | nessuno | SAM + console (utente IAM con MFA, o Identity Center) |
 | **CloudWatch Logs** | Log group della Lambda, 7 giorni | Errori e diagnosi | terminale | SAM |
 | **AWS Budgets** | Budget mensile con email | Allarme costi | nessuno | SAM (se passi l'email) |
 | **CloudFormation** | Stack `dynamolive-dev` / `dynamolive-live` | Tutto quanto sopra come codice, ripetibile | nessuno | `sam deploy` |
@@ -33,7 +35,7 @@ Non servono VPC, NAT, database relazionali, certificati o domini: tutti i serviz
 ## 3. Ordine delle operazioni
 
 1. Account e sicurezza di base (console) — §4
-2. Accesso per le persone: IAM Identity Center (console) — §5
+2. Accesso per le persone: utente IAM con MFA per account Free singolo; Identity Center se hai già un'Organization — §5
 3. AWS CLI, SAM CLI e profili locali (terminale) — §6
 4. Verifica quote e crediti (console) — §7
 5. Segreto admin in SSM (script o console) — §8
@@ -51,9 +53,11 @@ Non servono VPC, NAT, database relazionali, certificati o domini: tutti i serviz
 
 Opzionale ma consigliato: due account separati (DEV per le prove, LIVE per il talk) sotto la stessa organizzazione. Con un solo account basta usare due stack (`dev` e `live`) e due profili che puntano allo stesso account.
 
-## 5. Accesso per le persone: IAM Identity Center (manuale, console)
+## 5. Accesso per le persone (manuale, console)
 
-Preferiamo credenziali **temporanee** via SSO invece di access key a lunga scadenza.
+Per un account Free singolo, crea in *IAM → Users* un utente dedicato al deploy con accesso alla console, policy `AdministratorAccess` e `SignInLocalDevelopmentAccess`, password da cambiare al primo accesso e MFA. Usa `aws login --profile live` per ottenere credenziali temporanee via browser, senza creare access key per l'utente. Usa l'utente root solo per la configurazione iniziale; dopo che il profilo dedicato funziona, elimina eventuali access key root.
+
+Se hai già un'**istanza organizzativa** di IAM Identity Center, puoi usare invece i passaggi SSO seguenti. Non usare un'istanza *account* per questo scopo: non può assegnare permission set per l'accesso AWS.
 
 1. *IAM Identity Center → Enable* (nella regione `eu-central-1`).
 2. *Users → Add user*: una persona per membro del gruppo, con MFA obbligatoria (*Settings → Authentication → MFA: every time they sign in*).
@@ -81,7 +85,7 @@ Preferiamo credenziali **temporanee** via SSO invece di access key a lunga scade
 
 **Principio del minimo privilegio, in pratica:** la Lambda può solo leggere/scrivere la sua tabella e leggere un parametro; chi presenta può solo leggere; solo chi fa deploy ha poteri ampi, per un'ora, con MFA.
 
-**Se Identity Center non è disponibile** (account didattici con restrizioni): crea un utente IAM con MFA e access key, usa `aws configure --profile live`. Le chiavi finiscono in `%USERPROFILE%\.aws\credentials`, **mai** nel repository o in un `.env`. Ruotale o eliminale dopo la presentazione.
+Se non hai un'Organization, segui il percorso dell'utente IAM descritto sopra. `aws login` evita di creare access key permanenti per il deploy.
 
 ## 6. Strumenti e profili locali (terminale)
 
@@ -89,13 +93,12 @@ Installa (Windows): AWS CLI v2, AWS SAM CLI, Node.js 22+, PowerShell 7 consiglia
 
 ```powershell
 aws --version; sam --version; node --version
-aws configure sso --profile live      # URL del portale SSO, regione eu-central-1, account, permission set
-aws configure sso --profile dev       # stesso per DEV (o stesso account, altro permission set)
-aws sso login --profile live
+aws configure set region eu-central-1 --profile live
+aws login --profile live              # login tramite browser con l'utente IAM dedicato
 aws sts get-caller-identity --profile live   # deve mostrare l'account giusto
 ```
 
-I nomi dei profili `dev` e `live` sono quelli usati da `infra/samconfig.toml` e dagli script. Il file `~/.aws/config` è personale: non va copiato nel progetto.
+Se usi Identity Center, configura invece `aws configure sso --profile live` e poi `aws sso login --profile live`. I nomi dei profili `dev` e `live` sono quelli usati da `infra/samconfig.toml` e dagli script. Il file `~/.aws/config` è personale: non va copiato nel progetto.
 
 Variabili d'ambiente utili nel terminale (non in file versionati):
 
@@ -131,8 +134,8 @@ Cambiare la chiave: aggiorna il parametro, poi forza nuovi container (ridistribu
 ```powershell
 git checkout prod
 npm ci; npm --prefix frontend ci
-aws sso login --profile live
-./scripts/deploy-aws.ps1 -Environment live -Profile live -BudgetEmail "nome@esempio.it"
+aws login --profile live               # oppure aws sso login se il profilo usa Identity Center
+./scripts/deploy-aws.ps1 -Environment live -Profile live -BudgetEmail "nome@esempio.it" -BudgetAmount 5
 ```
 
 Cosa fa lo script, in ordine:
@@ -205,7 +208,7 @@ Attenzione: **ogni chiamata a Cost Explorer costa 0,01 USD** e va abilitato una 
 | CloudFront + S3 | ~0 | Nel free tier |
 | SSM Standard, CloudWatch Logs (7 giorni) | ~0 | |
 
-Totale atteso: **sotto 1 USD per talk**. Le prove su `dev` (provisioned 5/5) restano nel free tier. Il budget del template avvisa al 50 % e al 100 % del consuntivo e sulla **previsione** del mese, oltre 1 USD (dev) o 2 USD (live); **avvisa soltanto, non blocca**. Su un account con 20–50 USD di credito l'avviso sulla previsione è l'unico che arriva in tempo per fare qualcosa. Dopo il talk: `./scripts/aws-cost.ps1` subito per le quantità, Cost Explorer dopo 24–48 h per la fattura.
+Totale atteso: **sotto 1 USD per talk**. Le prove su `dev` (provisioned 5/5) restano nel free tier. Se fornisci `-BudgetEmail`, il budget del template avvisa al 50 % e al 100 % del consuntivo e sulla **previsione** del mese, oltre la soglia impostata con `-BudgetAmount` (2 USD predefiniti); **avvisa soltanto, non blocca**. Su un account con 20–50 USD di credito l'avviso sulla previsione è l'unico che arriva in tempo per fare qualcosa. Dopo il talk: `./scripts/aws-cost.ps1` subito per le quantità, Cost Explorer dopo 24–48 h per la fattura.
 
 Tabella e bucket hanno `DeletionPolicy: Retain`: eliminare lo stack non li cancella. Per azzerare i costi dopo il progetto: `sam delete`, poi svuota ed elimina il bucket, elimina la tabella e il parametro SSM.
 
@@ -215,7 +218,7 @@ Tabella e bucket hanno `DeletionPolicy: Retain`: eliminare lo stack non li cance
 | --- | --- | --- | --- | --- |
 | Account | MFA root, alert free tier, verifica crediti | — | — | Credenziali root |
 | IAM | Identity Center, utenti, permission set | Ruolo Lambda (SAM) | Policy Lambda nel template | Access key, `~/.aws/*` |
-| CLI | `aws configure sso` | — | Nomi profili in `samconfig.toml` | File di configurazione personali |
+| CLI | `aws login` (o `aws configure sso`) | — | Nomi profili in `samconfig.toml` | File di configurazione personali |
 | SSM | (opzionale) creare il parametro | `deploy-aws.ps1` lo crea | Nome del parametro nel template | Valore della chiave |
 | DynamoDB / Lambda / API / S3 / CloudFront / Logs / Budget | — | `sam deploy` | `infra/template.yaml` | — |
 | Frontend | — | `deploy-aws.ps1` (build, sync, invalidazione) | `frontend/.env.*.example` | `frontend/.env.dev`, `.env.live` |

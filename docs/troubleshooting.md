@@ -59,7 +59,7 @@ Senza regia: aggiungere `&mode=static` all'URL della LIM.
 | DynamoDB Local non parte | Docker Desktop spento | Avviare Docker Desktop (solo sul branch `develop`: su `prod` gli emulatori non ci sono) |
 | `sam deploy`: la Lambda risponde «Cannot find module 'handler'» | Bundle non compilato o nome file sbagliato | `npm run build:backend` deve produrre `backend/dist/handler.js` (non `.cjs`); il template cerca `handler.handler` |
 | Build del frontend che fallisce con «VITE_API_BASE assente» | Manca `frontend/.env.<env>`, o contiene ancora i segnaposto dell'esempio | È voluto: `./scripts/deploy-aws.ps1` lo genera dagli Outputs dello stack. Non copiare a mano il file `.example` |
-| `aws` / `sam`: token scaduto | Sessione SSO scaduta | `aws sso login --profile live` |
+| `aws` / `sam`: token scaduto | Credenziali temporanee scadute | `aws login --profile live` (o `aws sso login --profile live` con Identity Center) |
 | `sam deploy`: il parametro SSM non esiste | Primo deploy senza segreto | Usare `deploy-aws.ps1` (lo crea) o crearlo a mano ([aws-setup.md §8](aws-setup.md#8-segreto-admin-in-ssm-parameter-store)) |
 | Frontend su CloudFront vecchio dopo il deploy | Cache | `deploy-aws.ps1` invalida `/*`; attendere 1–2 minuti o ricaricare con Ctrl+F5 |
 | Pagina bianca su `/stage` diretto | Rewrite SPA non attivo | Verificare la CloudFront Function `…-spa` associata alla distribuzione |

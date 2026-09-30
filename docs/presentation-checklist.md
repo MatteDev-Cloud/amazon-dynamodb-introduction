@@ -20,7 +20,7 @@ Stampatela o tenetela aperta sul telefono. Ogni voce è una cosa verificabile, n
 
 - [ ] Sessioni create: `./scripts/new-session-aws.ps1 -Environment live -Sid talk-01` e `talk-02` di riserva.
 - [ ] Branch `develop` aggiornato sul portatile, `npm ci` fatto, **Docker Desktop avviabile offline**: `./scripts/demo-local.ps1` funziona con il Wi-Fi spento.
-- [ ] `aws sso login --profile live` funziona (il token SSO scade: rifarlo la mattina).
+- [ ] `aws login --profile live` (o `aws sso login` con Identity Center) funziona: le credenziali temporanee scadono, rifarlo la mattina.
 - [ ] Portatile, telefoni e powerbank carichi; adattatore HDMI/USB-C; telecomando con batterie.
 - [ ] Browser: un profilo pulito solo per la presentazione (niente estensioni, niente password salvate in vista, zoom al 100%).
 
