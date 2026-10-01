@@ -10,6 +10,7 @@
   import BoardView from '../shared/BoardView.svelte';
   import { message, pixelSK, time } from '../shared/ui';
   import { TapQueue, type QueueState } from './tap-queue';
+  import { keepScreenAwake } from './screen-wake-lock';
 
   api.admin = ''; // The phone never sends a stage credential.
   const sync = new CanvasSync(api);
@@ -107,6 +108,7 @@
   const stops: (() => void)[] = [];
   onMount(() => {
     stops.push(
+      keepScreenAwake(),
       poll(async () => { meta = await api.call<Meta>('/meta'); online = true; if (!player) await recover(); ensureQueue(); }, 1500, report),
       poll(async () => { if (meta && ['pixel', 'end'].includes(meta.phase)) await sync.refresh(); }, 1000, report),
       poll(async () => { if (queue && meta?.roundEndsAt) { await queue.flush(meta.roundEndsAt + meta.tapGraceMs); score = queue.score; queued = queue.state.queued + (queue.state.pending?.delta || 0); if (queue.error) notice = queue.error; } }, 500, report),
