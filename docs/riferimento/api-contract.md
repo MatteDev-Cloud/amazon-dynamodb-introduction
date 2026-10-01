@@ -21,7 +21,7 @@ Il pid è una credenziale bearer: join, il proprietario e lo stage autenticato l
 | POST `/tap` | `{pid,delta,seq,roundId}` | `{score,acceptedSeq,duplicate}` |
 | GET `/leaderboard` | `limit=1..100`, default 10 | `{top:[{nickname,team,score,rank}],provisional,roundId}` |
 | GET `/rank/{pid}` | proprietario/admin | `{rank,total,score,provisional}` |
-| GET `/stats` | admin | `StatsResponse`: campi Stats, prices, estimatedCost, costBasis; 404 `STATS_NOT_FOUND` se il contatore è scaduto |
+| GET `/stats` | admin | `StatsResponse`: campi Stats, prices, estimatedCost, costBasis, `audience` (contatori e costo delle sole richieste senza chiave admin; assente nelle sessioni create prima della ripartizione); 404 `STATS_NOT_FOUND` se il contatore è scaduto |
 | GET `/admin/aws` | admin | `AwsUsageResponse`: le stesse quantità lette da CloudWatch, `{available:false,reason}` se non disponibili |
 | POST `/admin/phase` | `{phase,expectedVersion,durationMs?}` | META aggiornato |
 | POST `/admin/hide` | `{hidden:boolean}` | META aggiornato |

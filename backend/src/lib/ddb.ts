@@ -1,13 +1,13 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import type { Inspect, InspectOperation } from '../../../shared/types.js';
+import type { Counters, Inspect, InspectOperation } from '../../../shared/types.js';
+import { COUNTERS, audienceField } from '../../../shared/pricing.js';
 import type { Configuration } from './config.js';
 export const newClient = (config: Pick<Configuration,'region'|'endpoint'>) => DynamoDBDocumentClient.from(new DynamoDBClient({
   region: config.region, endpoint: config.endpoint,
   ...(config.endpoint ? {credentials: {accessKeyId:'local',secretAccessKey:'local'}} : {}),
   maxAttempts: 3,
 }), {marshallOptions:{removeUndefinedValues:true}});
-export interface Counters { apiCalls: number; wruTable: number; wruGsi: number; rruTable: number; rruGsi: number; lambdaMs: number }
 const zero = (): Counters => ({apiCalls:0,wruTable:0,wruGsi:0,rruTable:0,rruGsi:0,lambdaMs:0});
 export class RequestDb {
   operations: InspectOperation[] = [];
@@ -70,28 +70,33 @@ export class RequestDb {
  * cost more than most requests do. The price is that a Lambda container which is never invoked again keeps
  * whatever it had not flushed, so the app's own total is a slight *under*count. BATCH bounds that loss, and
  * GET /admin/aws reads the same quantities back from CloudWatch as a check.
+ *
+ * Every counter is kept twice: the total, and the part that came from the audience (no admin key). The
+ * total is what CloudWatch can confirm; the audience part is what a projection may multiply, because one
+ * LIM and one regia polling all talk long do not become a thousand when the room does. The meter's own
+ * write lands in the total only, so it stays on the presenter's side of the receipt.
  */
 const BATCH = 20;
 export class Meter {
-  private pending = new Map<string,{values:Counters;flushed:number;busy:boolean}>();
-  async record(sid: string, db: RequestDb, elapsed: number, now: number) {
+  private pending = new Map<string,{values:Counters;audience:Counters;flushed:number;busy:boolean}>();
+  async record(sid: string, db: RequestDb, elapsed: number, now: number, audience = false) {
     let state = this.pending.get(sid);
     // A cold container flushes on its very first chance instead of waiting: it may not get a second request.
-    if (!state) { state={values:zero(),flushed:0,busy:false}; this.pending.set(sid,state); }
+    if (!state) { state={values:zero(),audience:zero(),flushed:0,busy:false}; this.pending.set(sid,state); }
     const delta = {...db.counters,apiCalls:1,lambdaMs:elapsed};
-    for (const k of Object.keys(delta) as (keyof Counters)[]) state.values[k]+=delta[k];
+    for (const k of COUNTERS) { state.values[k]+=delta[k]; if (audience) state.audience[k]+=delta[k]; }
     if (state.busy || (now-state.flushed<2000 && state.values.apiCalls<BATCH)) return;
-    state.busy=true; const snapshot=state.values; state.values=zero();
+    state.busy=true; const snapshot=state.values, fromAudience=state.audience; state.values=zero(); state.audience=zero();
     try {
-      const fields=Object.keys(snapshot) as (keyof Counters)[];
+      const adds:[string,number][]=COUNTERS.flatMap(k=>[[k,snapshot[k]],[audienceField(k),fromAudience[k]]] as [string,number][]);
       const output = await db.client.send(new UpdateCommand({TableName:db.table,Key:{PK:`SESSION#${sid}`,SK:'STATS'},
-        UpdateExpression:`ADD ${fields.map(k=>`#${k} :${k}`).join(', ')}`,
+        UpdateExpression:`ADD ${adds.map(([name])=>`#${name} :${name}`).join(', ')}`,
         ConditionExpression:'attribute_exists(PK)',
-        ExpressionAttributeNames:Object.fromEntries(fields.map(k=>[`#${k}`,k])),
-        ExpressionAttributeValues:Object.fromEntries(fields.map(k=>[`:${k}`,snapshot[k]])),ReturnConsumedCapacity:'INDEXES'}));
+        ExpressionAttributeNames:Object.fromEntries(adds.map(([name])=>[`#${name}`,name])),
+        ExpressionAttributeValues:Object.fromEntries(adds.map(([name,value])=>[`:${name}`,value])),ReturnConsumedCapacity:'INDEXES'}));
       state.values.wruTable += output.ConsumedCapacity?.Table?.CapacityUnits ?? output.ConsumedCapacity?.CapacityUnits ?? 0;
       state.flushed=now;
-    } catch { for (const k of Object.keys(snapshot) as (keyof Counters)[]) state.values[k]+=snapshot[k]; }
+    } catch { for (const k of COUNTERS) { state.values[k]+=snapshot[k]; state.audience[k]+=fromAudience[k]; } }
     finally { state.busy=false; }
     // Bound inactive telemetry in a reused container; discarding it only affects estimates.
     if (this.pending.size>100) for (const [key,value] of this.pending) if (!value.busy && now-value.flushed>60000) this.pending.delete(key);

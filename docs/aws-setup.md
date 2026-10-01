@@ -110,7 +110,7 @@ Variabili d'ambiente utili nel terminale (non in file versionati):
 ## 7. Quote e crediti (manuale, console)
 
 - *Lambda → Dashboard → Account-level concurrency*: gli account nuovi a volte hanno **10** esecuzioni concorrenti. Con 60 telefoni servono ~10–20: se il valore è basso chiedi l'aumento a 100+ da *Service Quotas → AWS Lambda → Concurrent executions* **con giorni di anticipo**.
-- *API Gateway*: il template limita a 1000 richieste/s (burst 2000). Ogni telefono fa ~3 richieste/s al picco, LIM e regia ~6 ciascuna: con 60 persone si sta intorno alle 250/s. Il limite non si paga (si paga per richiesta), ed è tenuto largo apposta: una richiesta throttlata dal gateway sul proiettore sembra un guasto.
+- *API Gateway*: il template limita a 1000 richieste/s (burst 2000). Ogni telefono fa ~3 richieste/s al picco, LIM e regia insieme ~10 durante il Pixel Wall e ~6 nel resto del talk: con 60 persone si sta intorno alle 250/s. Il limite non si paga (si paga per richiesta), ed è tenuto largo apposta: una richiesta throttlata dal gateway sul proiettore sembra un guasto.
 - DynamoDB on-demand in `live`: nessuna capacità da prenotare.
 
 ## 8. Segreto admin in SSM Parameter Store
@@ -185,11 +185,11 @@ URL per la LIM: `https://<SiteUrl>/stage?s=talk-01` (poi **R** per la regia). Il
 
 | Cifra | Dove si vede | Cosa è davvero | Ritardo |
 | --- | --- | --- | --- |
-| **Scontrino della LIM** | scena «Il conto» | capacità che il backend ha *osservato* (`ReturnConsumedCapacity`) × listino pubblicato. Quantità misurate, prezzi di listino. Leggermente per difetto: il contatore è bufferizzato per container Lambda. | nessuno |
-| **Verifica AWS** | stessa scena, riquadro blu · regia · `./scripts/aws-cost.ps1` | le stesse grandezze **secondo CloudWatch**: è AWS a dichiararle. Riferite alla tabella e alla funzione, non alla singola sessione: durante un talk ne gira una sola. | 1–3 minuti |
+| **Scontrino della LIM** | scena «Il conto» | capacità che il backend ha *osservato* (`ReturnConsumedCapacity`) × listino pubblicato. Quantità misurate, prezzi di listino. Leggermente per difetto: il contatore è bufferizzato per container Lambda. Diviso in due voci, pubblico e «LIM e regia»; il tassametro nell'angolo mostra solo il pubblico. | nessuno (fotografato all'apertura della scena) |
+| **Verifica AWS** | stessa scena, riquadro blu · regia · `./scripts/aws-cost.ps1` | le stesse grandezze **secondo CloudWatch**: è AWS a dichiararle. Riferite alla tabella e alla funzione, non alla singola sessione: durante un talk ne gira una sola. CloudWatch non distingue pubblico e regia: si confronta con il **totale** dello scontrino. | 1–3 minuti |
 | **Fattura** | Cost Explorer · `./scripts/aws-cost.ps1 -Billed` | quello che AWS addebita davvero, **dopo** free tier, crediti e imposte. Spesso è zero, e zero è il risultato giusto. | 24–48 ore |
 
-Lo scontrino è quindi onesto come stima e verificabile come misura. La riga che vale la pena dire ad alta voce è: «le quantità non ce le siamo inventate, e se non ci credete ecco gli stessi numeri letti da AWS».
+Lo scontrino è quindi onesto come stima e verificabile come misura. La riga che vale la pena dire ad alta voce è: «le quantità non ce le siamo inventate, e se non ci credete ecco il totale letto da AWS».
 
 ```powershell
 ./scripts/aws-cost.ps1 -Environment live -AwsProfile live            # quantità, subito dopo il talk

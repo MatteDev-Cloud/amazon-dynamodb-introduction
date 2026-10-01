@@ -2,12 +2,14 @@
   import { onMount, untrack } from 'svelte';
   import type { Session } from '../../shared/session.svelte';
   import { number } from '../../shared/ui';
+  import { audienceShare } from '../../../../shared/pricing.js';
   import Title from '../parts/Title.svelte';
   import Count from '../parts/Count.svelte';
   import { reveal } from '../motion';
   let { session }: { session: Session } = $props();
 
-  const stats = $derived(session.stats);
+  // «Ogni pallino è una vostra richiesta»: count the phones, not the polling of LIM and regia.
+  const stats = $derived(session.stats && audienceShare(session.stats));
   let rate = $state(0);
   let packets = $state<{ id: number }[]>([]);
   let last: { calls: number; at: number } | undefined;

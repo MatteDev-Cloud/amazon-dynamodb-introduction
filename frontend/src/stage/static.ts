@@ -14,5 +14,7 @@ export const examplePixel = (x: number, y: number): RawPixel => {
 };
 export const exampleMeta: Meta = { sid: 'esempio', phase: 'end', version: 1, createdAt: 0, canvasExpiresAt: 0, endTtlMs: 60000, phaseStartedAt: 0, phaseEndsAt: null, canvasW: LOGO_W, canvasH: LOGO_H, cooldownMs: 500, roundMs: 15000, pixelMs: 90000, canvasHidden: false, canvasRevision: 0, teamsRevealed: true, roundId: 'esempio', roundStartedAt: null, roundEndsAt: null, tapGraceMs: 2000, expiresAt: 0, prompt: 'Accendete il logo', botsEnabled: false };
 const measurements = { playersJoined: 40, pixelsPlaced: 380, pixelConflicts: 23, taps: 3800, teamOrange: 2000, teamPurple: 1800, apiCalls: 8400, wruTable: 16000, wruGsi: 7000, rruTable: 13000, rruGsi: 4200, lambdaMs: 210000, estimated: true as const, expiresAt: 0 };
-export const exampleStats: StatsResponse = { ...measurements, prices: PRICES, estimatedCost: estimateCost(measurements), costBasis: 'on-demand-list-price' };
+// The part of the totals above that came from the phones; the rest is LIM and regia.
+const audience = { apiCalls: 6900, wruTable: 15900, wruGsi: 7000, rruTable: 9800, rruGsi: 4200, lambdaMs: 172000 };
+export const exampleStats: StatsResponse = { ...measurements, prices: PRICES, estimatedCost: estimateCost(measurements), costBasis: 'on-demand-list-price', audience: { ...audience, estimatedCost: estimateCost(audience) } };
 export const exampleLeaderboard: LeaderboardResponse = { top: examplePlayers.slice(0, 8).map((p, i) => ({ nickname: p.nickname, team: p.team, score: 140 - i * 11, rank: i + 1 })), provisional: false, roundId: 'esempio' };
