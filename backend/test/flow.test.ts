@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
 import type { Configuration } from '../src/lib/config.js';
 import { FakeDdb } from './fake-ddb.js';
-import { PHASES, type AwsUsageResponse, type CanvasResponse, type Meta } from '../../shared/types.js';
+import { PHASES, type AwsUsageResponse, type CanvasResponse, type Meta, type StatsResponse } from '../../shared/types.js';
+import { presenterShare } from '../../shared/pricing.js';
 
 const KEY = 'admin-key-long-enough-1';
 const config: Configuration = { adminKey: KEY, tableName: 'test', region: 'eu-central-1', endpoint: undefined, origins: [], functionName: 'fn', apiId: 'api' };
@@ -118,6 +119,37 @@ test('the AWS cross-check is admin-only and degrades to "not available" instead 
   assert.equal(soft.status, 200, 'a CloudWatch failure must never reach the projector as an error');
   assert.equal(soft.data.available, false);
   assert.equal(soft.data.reason, 'CLOUDWATCH_UNAVAILABLE');
+});
+
+test('the meter keeps the audience apart from LIM and regia, and the two always add up to the total', async () => {
+  const h = harness();
+  await h.call('POST', '/admin/reset', {});
+  // The presenter polls all talk long; one phone joins once.
+  for (let i = 0; i < 5; i++) await h.call('GET', '/meta');
+  assert.equal((await h.call('POST', '/join', { nickname: 'ada' }, false)).status, 201);
+  h.advance(2100);
+  await h.call('GET', '/meta'); // past the buffer window: this request flushes everything recorded so far
+  const stats = (await h.call<StatsResponse>('GET', '/stats')).data;
+
+  assert.ok(stats.audience, 'new sessions report the split');
+  assert.equal(stats.audience.apiCalls, 1, 'only the request without the admin key belongs to the audience');
+  assert.ok(stats.audience.wruTable > 0, 'the join transaction is theirs');
+  assert.ok(stats.apiCalls >= 7, 'the total still counts every request, as CloudWatch does');
+  const rest = presenterShare(stats)!;
+  assert.equal(rest.apiCalls, stats.apiCalls - 1);
+  assert.ok(Math.abs(stats.audience.estimatedCost! + rest.estimatedCost! - stats.estimatedCost!) < 1e-12, 'two shares, one total');
+  assert.equal('audApiCalls' in stats, false, 'the storage attributes stay out of the contract');
+});
+
+test('a session created before the split still gets a receipt: the total, with no audience share', async () => {
+  const h = harness();
+  await h.call('POST', '/admin/reset', {});
+  const item = h.db.items.get('SESSION#talk\u0000STATS')!;
+  for (const name of Object.keys(item)) if (name.startsWith('aud')) delete item[name];
+  const stats = (await h.call<StatsResponse>('GET', '/stats')).data;
+  assert.equal(stats.audience, undefined);
+  assert.equal(presenterShare(stats), null);
+  assert.ok(stats.estimatedCost !== null);
 });
 
 test('taps are idempotent per sequence number and the leaderboard reads the index', async () => {

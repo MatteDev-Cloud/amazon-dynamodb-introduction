@@ -51,7 +51,15 @@ export interface PhaseRequest { phase: Phase; expectedVersion: number; durationM
 export interface SessionConfig { canvasW?: number; canvasH?: number; cooldownMs?: number; roundMs?: number; pixelMs?: number; prompt?: string; endTtlMs?: number }
 export interface ClearRequest { x1: number; y1: number; x2: number; y2: number }
 export interface ClearResponse { deleted: number; canvasRevision: number }
-export interface StatsResponse extends Stats { prices: PriceConfig; estimatedCost: number | null; costBasis: 'on-demand-list-price' }
+/** The metered quantities behind the receipt. */
+export interface Counters { apiCalls: number; wruTable: number; wruGsi: number; rruTable: number; rruGsi: number; lambdaMs: number }
+export interface CostShare extends Counters { estimatedCost: number | null }
+/**
+ * `audience` is the part of the totals that came without the admin key: phones and virtual players.
+ * The rest (LIM, regia, the meter's own writes) does not grow with the room, so projections leave it ×1.
+ * Absent on sessions created before the split existed.
+ */
+export interface StatsResponse extends Stats { prices: PriceConfig; estimatedCost: number | null; costBasis: 'on-demand-list-price'; audience?: CostShare }
 /**
  * What AWS itself reports for the resources behind this session (CloudWatch, not the app's own counters).
  * `window` is the measured interval; CloudWatch publishes with a delay, so `staleMs` says how old the last point is.
@@ -65,10 +73,9 @@ export interface AwsUsageResponse {
   available: boolean; reason?: string; usage?: AwsUsage; estimatedCost?: number | null;
   prices: PriceConfig; scope: 'table-and-functions-in-region';
 }
-export interface Stats {
+export interface Stats extends Counters {
   playersJoined: number; pixelsPlaced: number; pixelConflicts?: number; taps: number; teamOrange: number; teamPurple: number;
-  apiCalls: number; wruTable: number; wruGsi: number; rruTable: number; rruGsi: number;
-  lambdaMs: number; estimated: true; expiresAt: number;
+  estimated: true; expiresAt: number;
 }
 export interface PriceConfig {
   region: string; currency: 'USD'; verifiedAt: string | null; source: string;

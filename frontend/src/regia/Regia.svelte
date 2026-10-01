@@ -162,7 +162,7 @@
 
   const PING_MS = 1500;
   onMount(() => {
-    session.start({ canvasMs: 500 });
+    session.start({ canvasMs: 500, statsMs: 3000, leaderboard: false });
     channel.send({ t: 'hello' });
     if (api.admin) channel.send({ t: 'key', key: api.admin });
     // This window has focus, so its timers run at full rate: it is the one that keeps the link measurable.

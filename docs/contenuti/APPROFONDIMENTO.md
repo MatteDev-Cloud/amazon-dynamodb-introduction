@@ -197,7 +197,7 @@ L'X-Ray mostra capacità restituite dall'SDK e tempo osservato nelle chiamate al
 
 Il tassametro usa i parametri regionali condivisi dal backend: WRU, RRU, richieste HTTP API, richieste Lambda e durata osservata a 256 MB. Include separatamente tabella e GSI. Una scrittura indicizzata non costa sempre «il doppio»: dipende da operazione, dimensioni e modifica dell'indice.
 
-La telemetria può perdere la coda di un container. La stima non è una fattura: esclude storage, hosting, log, trasferimenti, crediti e imposte. Su Local o DEV provisioned rappresenta l'equivalente a listino on-demand. I moltiplicatori applicano una proiezione lineare, senza generare traffico e senza modellare gli scaglioni. I prezzi di Francoforte sono registrati in shared/pricing.ts e shared/pricing-sources.json.
+La telemetria può perdere la coda di un container. La stima non è una fattura: esclude storage, hosting, log, trasferimenti, crediti e imposte. Su Local o DEV provisioned rappresenta l'equivalente a listino on-demand. Lo scontrino separa due voci: le richieste del pubblico e quelle di LIM e regia, che interrogano il database per tutta la presentazione. I moltiplicatori applicano una proiezione lineare alla sola voce del pubblico, senza generare traffico e senza modellare gli scaglioni; la voce della presentazione resta invariata. I prezzi di Francoforte sono registrati in shared/pricing.ts e shared/pricing-sources.json.
 
 ### 7.2 Quando sì e quando no
 

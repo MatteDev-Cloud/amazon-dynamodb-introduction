@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { GetCommand, PutCommand, TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import type { Meta, Player, RawPixel, Stats, TapRequest } from '../../shared/types.js';
-import { PRICES, estimateCost, usageCost } from '../../shared/pricing.js';
+import { COUNTERS, PRICES, audienceCounters, audienceField, estimateCost, usageCost } from '../../shared/pricing.js';
 import type { Configuration } from './lib/config.js';
 import { logoColor } from '../../shared/logo.js';
 import { HttpError, fail, integer, makeMeta, nextPhase, nickname, pidValue, pixelKey, secretMatches, sessionKey, sidValue, teamFor } from './lib/domain.js';
@@ -101,7 +101,8 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
         requireAdmin();
         const meta=makeMeta(sid,body,now);
         const stats:Stats={playersJoined:0,pixelsPlaced:0,pixelConflicts:0,taps:0,teamOrange:0,teamPurple:0,apiCalls:0,wruTable:0,wruGsi:0,rruTable:0,rruGsi:0,lambdaMs:0,estimated:true,expiresAt:meta.expiresAt};
-        try { await transaction(db,[{Put:{TableName:table,Item:{...sessionKey(sid,'META'),...meta},ConditionExpression:'attribute_not_exists(PK)'}},{Put:{TableName:table,Item:{...sessionKey(sid,'STATS'),...stats},ConditionExpression:'attribute_not_exists(PK)'}}]); }
+        const audience=Object.fromEntries(COUNTERS.map(k=>[audienceField(k),0]));
+        try { await transaction(db,[{Put:{TableName:table,Item:{...sessionKey(sid,'META'),...meta},ConditionExpression:'attribute_not_exists(PK)'}},{Put:{TableName:table,Item:{...sessionKey(sid,'STATS'),...stats,...audience},ConditionExpression:'attribute_not_exists(PK)'}}]); }
         catch(e) { if(conditional(e)) fail(409,'SESSION_EXISTS','Use a new sid; existing sessions are never overwritten'); throw e; }
         sessionExists=true; return finish(201,{...meta});
       }
@@ -227,7 +228,9 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
         requireAdmin(); const item=await get(db,sessionKey(sid,'STATS'));
         // TTL removes items one by one: STATS can go before META. Never turn that into a 503 during the talk.
         if(!item) fail(404,'STATS_NOT_FOUND','Counters expired or missing');
-        const {PK,SK,...stats}=item; return finish(200,{...stats,prices:PRICES,costBasis:'on-demand-list-price',estimatedCost:estimateCost(stats as Stats)});
+        const {PK,SK,...stats}=item, audience=audienceCounters(stats);
+        for(const k of COUNTERS) delete stats[audienceField(k)];
+        return finish(200,{...stats,prices:PRICES,costBasis:'on-demand-list-price',estimatedCost:estimateCost(stats as Stats),...(audience?{audience:{...audience,estimatedCost:estimateCost(audience)}}:{})});
       }
       if(req.method==='GET'&&path==='/admin/aws') {
         // What AWS itself recorded, as a check on our own counters. Admin only, and never fatal for the slide.
@@ -247,6 +250,6 @@ export function createApp(config: Configuration, options: {client?: DynamoDBDocu
       // No request body, credentials or raw AWS errors in logs/responses.
       console.error(JSON.stringify({event:'backend_error',type:error instanceof Error?error.name:'UnknownError'}));
       return finish(503,{error:'BACKEND_UNAVAILABLE',message:'Temporary backend failure; retry with backoff',retryInMs:100+Math.floor(Math.random()*200)});
-    } finally { if(sid&&sessionExists) await meter.record(sid,db,performance.now()-start,clock()); }
+    } finally { if(sid&&sessionExists) await meter.record(sid,db,performance.now()-start,clock(),!admin); }
   };
 }

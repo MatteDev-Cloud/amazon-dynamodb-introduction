@@ -5,6 +5,8 @@ import { message } from './ui';
 import { CanvasSync } from './sync';
 import { exampleLeaderboard, exampleMeta, examplePixels, examplePlayers, exampleStats } from '../stage/static';
 
+const CANVAS_IDLE_MS = 3000;
+
 /** Reactive view of one session, shared by the LIM and the Regia. */
 export class Session {
   meta = $state<Meta>();
@@ -52,7 +54,13 @@ export class Session {
     this.report(error);
   };
 
-  start({ canvasMs = 500 } = {}) {
+  /**
+   * Every poll here is paid traffic that the audience did not cause, so each view asks only for what it
+   * shows: the Regia has no leaderboard and reads one number from STATS. The canvas is polled fast only
+   * while it can change (the game, and the closing dissolve); in between a slow refresh keeps it honest.
+   */
+  start({ canvasMs = 500, statsMs = 1000, leaderboard = true } = {}) {
+    let canvasAt = 0, canvasPhase = '';
     const tick = setInterval(() => {
       this.now = this.api.now(); this.wall = Date.now();
       this.sync.expire(this.now);
@@ -65,10 +73,17 @@ export class Session {
     this.stops.push(
       poll(async () => { this.meta = await this.api.call<Meta>('/meta'); }, 1000, this.report),
       poll(async () => { if (!this.admin) return; const r = await this.api.call<PlayersResponse>('/players'); this.players = r.players; }, 2000, this.quiet),
-      poll(async () => { if (!this.admin) return; this.stats = await this.api.call<StatsResponse>('/stats'); }, 1000, this.quiet),
-      poll(async () => { if (this.meta?.roundId) this.leaderboard = await this.api.call<LeaderboardResponse>('/leaderboard'); }, 1000, this.quiet),
-      poll(async () => { if (this.meta) await this.sync.refresh(); }, canvasMs, this.quiet),
+      poll(async () => { if (!this.admin) return; this.stats = await this.api.call<StatsResponse>('/stats'); }, statsMs, this.quiet),
+      poll(async () => {
+        const phase = this.meta?.phase; if (!phase) return;
+        // A phase change refreshes at once: the last pixels before a freeze must not arrive seconds late.
+        const idle = !['pixel', 'end'].includes(phase) && phase === canvasPhase;
+        if (idle && Date.now() - canvasAt < CANVAS_IDLE_MS) return;
+        canvasAt = Date.now(); canvasPhase = phase;
+        await this.sync.refresh();
+      }, canvasMs, this.quiet),
     );
+    if (leaderboard) this.stops.push(poll(async () => { if (this.meta?.roundId) this.leaderboard = await this.api.call<LeaderboardResponse>('/leaderboard'); }, 1000, this.quiet));
     const online = () => { void this.sync.refresh(true).catch(this.quiet); };
     window.addEventListener('online', online);
     this.stops.push(() => window.removeEventListener('online', online));

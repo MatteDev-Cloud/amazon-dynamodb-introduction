@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { AwsUsageResponse } from '../../../../shared/types.js';
+  import type { AwsUsageResponse, StatsResponse } from '../../../../shared/types.js';
+  import { audienceShare, presenterShare } from '../../../../shared/pricing.js';
   import { config } from '../../shared/config';
   import type { Session } from '../../shared/session.svelte';
   import { clock, isBot, number, usd } from '../../shared/ui';
@@ -8,8 +9,22 @@
   import Count from '../parts/Count.svelte';
   import { reveal } from '../motion';
   let { session, step }: { session: Session; step: number } = $props();
-  const s = $derived(session.stats);
+  /**
+   * A receipt is printed once. LIM, regia and phones keep polling while it is on screen, so live numbers
+   * would keep climbing under the speaker — by millions per second at ×1.000.000. Leaving the scene and
+   * coming back prints a new one.
+   */
+  let s = $state<StatsResponse>();
+  $effect(() => { if (!s && session.stats) s = session.stats; });
+  /**
+   * Two payers. What the phones did grows with the room and is what the projection multiplies; one LIM
+   * and one regia stay one LIM and one regia, so their share is added once, whatever the multiplier.
+   * `crew` is null for a session without the split: the receipt then falls back to a single block.
+   */
+  const room = $derived(s && audienceShare(s));
+  const crew = $derived(s ? presenterShare(s) : null);
   const k = $derived([1, 1000, 1_000_000][step] ?? 1);
+  const grandTotal = $derived(!room || room.estimatedCost === null || crew?.estimatedCost === null ? null : room.estimatedCost * k + (crew?.estimatedCost ?? 0));
   // The swarm joined as ordinary players: it is not «persone in sala».
   const inRoom = $derived(session.players.filter(p => !isBot(p.nickname)).length);
   const people = $derived(Math.max(1, inRoom) * k);
@@ -37,12 +52,12 @@
     try { aws = await session.api.call<AwsUsageResponse>('/admin/aws'); } catch { /* the slide stands on its own */ }
   }
   onMount(() => { void checkAws(); const id = setInterval(checkAws, 20000); return () => clearInterval(id); });
-  const lines = $derived(s ? [
-    { label: 'Richieste API', value: s.apiCalls },
-    { label: 'Scritture tabella · WRU', value: s.wruTable, digits: 1 },
-    { label: 'Scritture GSI · WRU', value: s.wruGsi, digits: 1, hot: true },
-    { label: 'Letture · RRU', value: s.rruTable + s.rruGsi, digits: 1 },
-    { label: 'Calcolo Lambda · s', value: s.lambdaMs / 1000, digits: 1 },
+  const lines = $derived(room ? [
+    { label: 'Richieste API', value: room.apiCalls },
+    { label: 'Scritture tabella · WRU', value: room.wruTable, digits: 1 },
+    { label: 'Scritture GSI · WRU', value: room.wruGsi, digits: 1, hot: true },
+    { label: 'Letture · RRU', value: room.rruTable + room.rruGsi, digits: 1 },
+    { label: 'Calcolo Lambda · s', value: room.lambdaMs / 1000, digits: 1 },
   ] : []);
   const printedAt = clock(Date.now());
 </script>
@@ -70,6 +85,20 @@
         <p class="muted small-note" use:reveal={{ delay: .6 }}>Dato pubblicato da AWS per quell’evento, non la capacità dimostrata dalla nostra tabella. E a quella scala il nostro contatore unico non reggerebbe: è l’<b>hot key</b> di poco fa.</p>
       {/if}
     </div>
+    <!-- Beside the receipt, not under it: with two payers the receipt fills the column. -->
+    {#if step === 0 && aws?.available && aws.usage}
+      <div class="verify mono" use:reveal={{ delay: .6, y: 30 }}>
+        <p class="vhead">Il totale, letto da AWS</p>
+        {#each awsLines as line (line.label)}
+          <p class="vline"><span>{line.label}</span><b>{number(line.value, line.digits)}</b></p>
+        {/each}
+        <p class="vline vtotal"><span>TOTALE SECONDO AWS</span><b>{aws.estimatedCost == null ? 'n/d' : usd(aws.estimatedCost)}</b></p>
+        <p class="vfine">
+          CloudWatch · ritardo {aws.usage.staleMs === null ? 'n/d' : `~${Math.round(aws.usage.staleMs / 1000)} s`}.
+          Misura la tabella e la funzione, non la singola sessione: telefoni, LIM e regia insieme.
+        </p>
+      </div>
+    {/if}
   </div>
 
   <div class="receipt-wrap" use:reveal={{ delay: .2, y: -120 }}>
@@ -81,32 +110,26 @@
       {#if !s}
         <p>Misure non disponibili.</p>
       {:else}
+        {#if crew}<p class="payer">Voi · i telefoni{k > 1 ? ` · ×${number(k)}` : ''}</p>{/if}
         {#each lines as line, i (line.label)}
           <p class="line" class:hot={line.hot && step === 0} style:animation-delay="{.6 + i * .18}s"><span>{line.label}</span><b><Count value={line.value * k} digits={line.digits ?? 0} /></b></p>
         {/each}
+        {#if crew && room}
+          <p class="line sub" style:animation-delay="{.6 + lines.length * .18}s"><span>Subtotale</span><b>{#if room.estimatedCost === null}n/d{:else}<Count value={room.estimatedCost * k} format={v => usd(v, k >= 1000 ? 2 : 4)} />{/if}</b></p>
+          <hr />
+          <p class="payer">LIM e regia · sempre una{k > 1 ? ' · ×1' : ''}</p>
+          <p class="line" style:animation-delay="{.6 + (lines.length + 1) * .18}s"><span>{number(crew.apiCalls)} richieste</span><b>{crew.estimatedCost === null ? 'n/d' : usd(crew.estimatedCost)}</b></p>
+        {/if}
         <hr />
-        <p class="total" style:animation-delay="{.6 + lines.length * .18}s">
+        <p class="total" style:animation-delay="{.6 + (lines.length + 2) * .18}s">
           <span>TOTALE STIMATO</span>
-          <b>{s.estimatedCost === null ? 'n/d' : ''}{#if s.estimatedCost !== null}<Count value={s.estimatedCost * k} format={v => usd(v, k >= 1000 ? 2 : 4)} />{/if}</b>
+          <b>{#if grandTotal === null}n/d{:else}<Count value={grandTotal} format={v => usd(v, k >= 1000 ? 2 : 4)} />{/if}</b>
         </p>
         {#if step === 0}<p class="gsi-note">↑ ogni GSI moltiplica le scritture</p>{/if}
         <hr />
-        <p class="fine">{config.mock || config.static ? 'DATI SIMULATI' : 'Capacità misurata dall’app × listino on-demand'} · {s.prices.region}. Prima di crediti e imposte; hosting, storage e log esclusi. {k > 1 ? 'Proiezione a listino, non un test di carico.' : ''}</p>
+        <p class="fine">{config.mock || config.static ? 'DATI SIMULATI' : 'Capacità misurata dall’app × listino on-demand'} · {s.prices.region}. Prima di crediti e imposte; hosting, storage e log esclusi. {k > 1 ? `Proiezione a listino, non un test di carico${crew ? ': si moltiplica la sala, non la regia' : ''}.` : ''}</p>
       {/if}
     </div>
-    {#if step === 0 && aws?.available && aws.usage}
-      <div class="verify mono" use:reveal={{ delay: .6, y: 30 }}>
-        <p class="vhead">Gli stessi numeri, letti da AWS</p>
-        {#each awsLines as line (line.label)}
-          <p class="vline"><span>{line.label}</span><b>{number(line.value, line.digits)}</b></p>
-        {/each}
-        <p class="vline vtotal"><span>TOTALE SECONDO AWS</span><b>{aws.estimatedCost == null ? 'n/d' : usd(aws.estimatedCost)}</b></p>
-        <p class="vfine">
-          CloudWatch · ritardo {aws.usage.staleMs === null ? 'n/d' : `~${Math.round(aws.usage.staleMs / 1000)} s`}.
-          Misura la tabella e la funzione, non la singola sessione.
-        </p>
-      </div>
-    {/if}
   </div>
 </div>
 
@@ -133,11 +156,13 @@
   hr { border: 0; border-top: 2px dashed var(--line-2); margin: 18px 0; }
   .line, .total { display: flex; justify-content: space-between; gap: 20px; animation: fade-up .5s var(--ease-out) both; }
   .line span { color: var(--ink-2); }
+  .line.sub { font-weight: 800; margin-top: 10px; }
+  .payer { font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
   .line.hot { background: var(--accent-soft); margin: 0 -14px; padding: 4px 14px; border-radius: 6px; }
   .total { font-size: 30px; font-weight: 800; }
   .total b { color: var(--accent); }
   .gsi-note { font-size: 18px; color: var(--accent); margin-top: 10px !important; }
-  .verify { margin-top: 26px; background: var(--card); border: 1.5px solid var(--blue); border-radius: 18px; padding: 18px 22px; font-size: 17px; }
+  .verify { margin-top: 40px; max-width: 620px;background: var(--card); border: 1.5px solid var(--blue); border-radius: 18px; padding: 18px 22px; font-size: 17px; }
   .vhead { margin: 0 0 10px; color: var(--blue); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 14px; }
   .vline { display: flex; justify-content: space-between; gap: 18px; margin: 5px 0; }
   .vline span { color: var(--ink-2); }

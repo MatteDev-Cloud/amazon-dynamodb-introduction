@@ -287,6 +287,8 @@ Costo stimato   € 0,0041
 - Ogni invocazione Lambda accumula in variabili di modulo: `apiCalls`, `wruTable`, `wruGsi`, `rruTable`, `rruGsi` (dai `ConsumedCapacity`) più i contatori di gioco.
 - **Flush:** alla prima invocazione dopo 2s dall'ultimo flush, parte un solo `UpdateItem STATS ADD …`. Il consumo del flush stesso finisce nel flush successivo. Niente scrittura per richiesta: sarebbe una hot key costosa.
 - I container Lambda in pausa possono trattenere pochi secondi di dati: il valore è una **stima**, e l'etichetta lo dice.
+- **Due voci.** Ogni contatore è tenuto due volte in `STATS`: il totale (`apiCalls`, `wruTable`, …) e la parte del pubblico (`audApiCalls`, `audWruTable`, …), cioè le richieste arrivate **senza chiave admin**: telefoni e giocatori virtuali. La differenza è LIM e regia, più le scritture del contatore stesso. `GET /stats` restituisce il totale e `audience`; gli attributi `aud*` non fanno parte del contratto.
+- Il widget nell'angolo e la scena dell'architettura mostrano solo la parte del pubblico: LIM e regia interrogano dalla prima slide, e il contatore non deve correre a sala vuota.
 
 ### Formula
 
@@ -298,7 +300,8 @@ I prezzi vanno in `shared/config.ts`. **⚠️ DA VERIFICARE sul listino ufficia
 
 ### Proiezione "Ora siamo mille" (simulata)
 
-- Selettore **×1 · ×1.000 · ×1.000.000**: moltiplica richieste, scritture e costo.
+- Selettore **×1 · ×1.000 · ×1.000.000**: moltiplica richieste, scritture e costo **del pubblico**. La voce «LIM e regia» resta ×1 e si somma una volta al totale: un proiettore e una regia non crescono con la sala.
+- Lo scontrino è una fotografia presa all'apertura della scena: non sale mentre viene letto.
 - Sulla tela o sulle barre compaiono puntini simulati, **solo visivi, nessuna scrittura**.
 - Didascalia fissa: **"Proiezione a listino, non un test di carico."**
 - Punto di confronto: "Prime Day 2025: picco di 151M richieste/s su DynamoDB".

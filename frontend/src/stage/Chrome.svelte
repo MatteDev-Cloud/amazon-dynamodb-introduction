@@ -2,13 +2,16 @@
   import { config } from '../shared/config';
   import type { Session } from '../shared/session.svelte';
   import { number, usd } from '../shared/ui';
+  import { audienceShare } from '../../../shared/pricing.js';
   import { scenes } from './slides';
   let { session, index, step, meterOn, regiaOnline }: { session: Session; index: number; step: number; meterOn: boolean; regiaOnline: boolean } = $props();
   const scene = $derived(scenes[index]!);
   // The cost scene has the receipt: a second running total in the corner would only compete with it.
   const showMeter = $derived(meterOn && scene.id !== 'cost');
   const status = $derived(config.static ? 'Fallback statico · esempi simulati' : config.mock ? 'Demo · dati simulati' : !session.online ? 'Rete assente · riconnessione' : `Live · ${config.sid}`);
-  const cost = $derived(session.stats?.estimatedCost);
+  // The audience's share only: LIM and regia poll from the first slide, and the meter must not run in an empty room.
+  const share = $derived(session.stats && audienceShare(session.stats));
+  const cost = $derived(share?.estimatedCost);
 </script>
 
 <header class="top">
@@ -33,10 +36,10 @@
   </ol>
   {#if (!regiaOnline && session.notice && !config.static)}<p class="notice">{session.notice}</p>{/if}
   {#if showMeter}
-    <div class="meter" title="Stima a listino on-demand">
-      <span class="eyebrow">Costo finora</span>
+    <div class="meter" title="Stima a listino on-demand delle richieste dei telefoni; LIM e regia sono a parte nello scontrino">
+      <span class="eyebrow">Il vostro conto</span>
       <strong class="mono">{cost === undefined ? '—' : cost === null ? 'n/d' : usd(cost)}</strong>
-      <span class="mono small">{number(session.stats?.apiCalls ?? 0)} richieste</span>
+      <span class="mono small">{number(share?.apiCalls ?? 0)} richieste</span>
     </div>
   {/if}
 </footer>

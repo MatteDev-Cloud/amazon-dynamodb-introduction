@@ -177,15 +177,18 @@ Punteggio personale e totale di squadra si aggiornano insieme, in una transazion
 
 **Speaker 2** (8.1, lo scontrino):
 «Questo è lo scontrino di tutto quello che avete fatto finora.» *(leggere il valore vero sulla LIM)* «Non è una simulazione: la quantità è quella che DynamoDB ci restituisce a ogni chiamata, `ReturnConsumedCapacity`. Il prezzo è il listino pubblicato di Francoforte. Esclude hosting, log, free tier e crediti.
-Guardate la riga degli indici: ogni scrittura che tocca un attributo indicizzato scrive anche nell'indice. Gli indici non sono gratis.»
+Guardate la riga degli indici: ogni scrittura che tocca un attributo indicizzato scrive anche nell'indice. Gli indici non sono gratis.
+Lo scontrino ha due voci. La prima siete voi: tutto quello che è partito dai vostri telefoni. La seconda siamo noi: questa LIM e la regia, che interrogano il database per tutto il talk.»
 
-*Se sulla destra è comparso il riquadro blu «Gli stessi numeri, letti da AWS» (arriva con 1–3 minuti di ritardo, e può non comparire: la slide regge lo stesso):*
+> Lo scontrino è **stampato una volta**, quando si apre la scena: i numeri non salgono mentre lo leggete. Per ristamparlo basta uscire dalla slide e rientrare. Il tassametro nell'angolo («Il vostro conto») mostra per tutto il talk solo la voce «Voi»: coincide con il subtotale, non con il totale.
 
-«E se non vi fidate dei nostri contatori: questi sono gli stessi numeri letti da CloudWatch, cioè dichiarati da AWS. Non coincidono al decimale — il nostro contatore è bufferizzato e tende a stare un filo sotto — ma è lo stesso ordine di grandezza, ed è il punto.»
+*Se sulla sinistra, sotto i pallini, è comparso il riquadro blu «Il totale, letto da AWS» (arriva con 1–3 minuti di ritardo, e può non comparire: la slide regge lo stesso):*
+
+«E se non vi fidate dei nostri contatori: questo è il totale letto da CloudWatch, cioè dichiarato da AWS. AWS non distingue i vostri telefoni dalla nostra regia, quindi va confrontato con il totale in fondo allo scontrino. Non coincide al decimale — il nostro contatore è bufferizzato e tende a stare un filo sotto — ma è lo stesso ordine di grandezza, ed è il punto.»
 
 ▶ **Speaker 1: Avanti** → *8.2, ×1.000.*
 
-«Se foste mille volte di più…»
+«Se foste mille volte di più… Si moltiplica la vostra voce. La nostra resta quella: la LIM è sempre una.»
 
 ▶ **Speaker 1: Avanti** → *8.3, ×1.000.000.*
 
@@ -250,7 +253,7 @@ Grazie. Eravate già nel database.»
 - **6** telefono → API Gateway → Lambda → DynamoDB · zero server nostri ≠ zero responsabilità · 3 data center senza averlo chiesto.
 - **7** (regia) Avvia 3·2·1 · I = X-Ray · batch numerati, nessun punto doppio · transazione · GSI asincrono.
 - **7** HOT KEY: `ADD` atomico, nessun lock · la classifica è un GSI già ordinato · se le squadre sono sbilanciate la LIM mostra i tap **a testa**: «le ha divise un hash, non un arbitro» → dirlo prima che lo dica il pubblico.
-- **8** scontrino = quantità misurate × listino · gli indici costano · riquadro blu = gli stessi numeri secondo AWS · ×1000 è una moltiplicazione, non un test → passa a S1.
+- **8** scontrino = quantità misurate × listino · due voci: voi (telefoni) e noi (LIM e regia) · gli indici costano · riquadro blu = il totale secondo AWS · ×1000 moltiplica solo la sala, ed è una moltiplicazione, non un test → passa a S1.
 - **10** «Avanti» qui accorcia il TTL: i pallini spariscono uno per volta · il TTL è un attributo **per item** · la cancellazione fisica è asincrona e gratuita, quella che si vede è logica · QR documento → passa a S1.
 
 ## Domande probabili del docente
@@ -268,12 +271,14 @@ Grazie. Eravate già nel database.»
 | On-demand o provisioned? | On-demand per il talk: nessuna capacità da stimare, paghi per richiesta. Provisioned 5/5 nello stack di prova, dentro il free tier. |
 | Come funziona il TTL? | Attributo `expiresAt` in secondi epoch, **su ogni item**: due item della stessa tabella possono scadere in momenti diversi, ed è esattamente quello che fa la chiusura. DynamoDB cancella gli scaduti in background, di solito entro 48 h, senza consumare capacità. Nel frattempo ogni lettura li filtra. |
 | Ma allora i pallini che spariscono sono un trucco? | No: il backend riscrive davvero `expiresAt` di ogni pixel, distribuito sulla finestra della chiusura, e da quel momento nessuna lettura li restituisce più. È la stessa logica che qualunque applicazione con TTL deve avere: la cancellazione fisica non è istantanea, quindi non ci si può contare. |
-| Il costo che avete mostrato è vero? | Le quantità sì, misurate da DynamoDB a ogni chiamata; il prezzo è di listino. Il riquadro blu sono le stesse quantità secondo CloudWatch, cioè secondo AWS. La fattura vera è di solito zero, perché il free tier copre tutto. |
+| Il costo che avete mostrato è vero? | Le quantità sì, misurate da DynamoDB a ogni chiamata; il prezzo è di listino. Il riquadro blu è il totale secondo CloudWatch, cioè secondo AWS. La fattura vera è di solito zero, perché il free tier copre tutto. |
 | Come proteggete l'API? | Chiave admin in SSM Parameter Store (SecureString) letta dalla Lambda, mai nel frontend; CORS limitato al dominio CloudFront; throttling su API Gateway; ruolo Lambda con i soli permessi sulla tabella; input validati. |
 | Perché polling e non WebSocket? | Semplicità e robustezza su reti sconosciute: richieste HTTP normali, niente connessioni da mantenere, costi facili da stimare. Con migliaia di utenti passeremmo a WebSocket (API Gateway) o AppSync. |
 | Quanto scala? | DynamoDB scala orizzontalmente se le chiavi sono distribuite; nel nostro caso i limiti sono il throttling che abbiamo impostato (1000 rps), la concorrenza Lambda dell'account e la hot key `STATS`. Il collo di bottiglia è il nostro modello dati, non il database. |
 | Cold start della Lambda? | Il primo invocazione di un container impiega qualche centinaio di ms in più (e legge la chiave da SSM). Prima del talk facciamo qualche chiamata per scaldarla. |
 | Come calcolate il costo in tempo reale? | Ogni chiamata chiede `ReturnConsumedCapacity`; sommiamo le unità di tabella e indici e moltiplichiamo per il listino di Francoforte. È una stima, non la fattura. |
+| Perché lo scontrino ha due voci? E il ×1.000 cosa moltiplica? | LIM e regia interrogano il database per tutto il talk: è traffico della presentazione, e resta uno anche con mille volte le persone. Il backend distingue le richieste con la chiave admin (LIM e regia) da quelle senza (telefoni). La proiezione moltiplica solo i telefoni — azioni e sincronizzazione, perché anche il polling cresce con le persone — e aggiunge la regia una volta. |
+| Quella cifra è tutta DynamoDB? | No. La maggior parte delle richieste è polling, e lì pesano API Gateway e Lambda (circa 1,40 USD per milione di richieste) più della lettura su DynamoDB (0,15 USD per milione di RRU). Le righe WRU e RRU sono la parte DynamoDB. |
 | Single-table design: pro e contro? | Pro: una Query restituisce entità correlate, una sola tabella da gestire. Contro: modello meno leggibile, difficile da cambiare, richiede di conoscere gli access pattern. |
 | E se AWS non funziona durante il talk? | Piano B: backend locale su DynamoDB Local (stesso codice), poi LIM in modalità statica, poi video. Vedi [troubleshooting](troubleshooting.md). |
 | I dati sono al sicuro? Quante copie? | DynamoDB replica ogni scrittura in modo sincrono su tre zone di disponibilità (data center distinti) della regione, senza che noi lo configuriamo. Una lettura eventualmente consistente può raggiungere una copia non ancora aggiornata: per questo `META` e la classifica finale le leggiamo in modo forte. |
