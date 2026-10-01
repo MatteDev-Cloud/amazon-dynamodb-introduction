@@ -132,7 +132,7 @@
 
   <section class="content">
     {#if gone === 'expired'}
-      <h1 class="display">Sessione scaduta.</h1><p class="muted">Il TTL ha fatto il suo lavoro.</p>
+      <h1 class="display">Sessione scaduta.</h1><p class="muted">Per partecipare alla nuova prova, scansiona il QR attualmente mostrato sulla LIM.</p>
     {:else if gone === 'banned' || player?.banned}
       <h1 class="display">Partecipazione sospesa.</h1>
     {:else if !meta}
@@ -149,7 +149,7 @@
           <button class="btn solid big" type="submit" disabled={joining}>Entra</button>
         </form>
       {:else}
-        <h1 class="display">Ingresso chiuso.</h1><p class="muted">Guarda lo schermo e segui la presentazione.</p>
+        <h1 class="display">Ingresso chiuso.</h1><p class="muted">Questa sessione ha già superato l’ingresso. Se è iniziata una nuova prova, scansiona il nuovo QR sulla LIM.</p>
       {/if}
     {:else}
       <p class="eyebrow">{player.nickname}{meta.teamsRevealed ? ` · squadra ${teamName}` : ''}</p>

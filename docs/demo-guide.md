@@ -33,6 +33,8 @@ Senza Docker: `scripts/setup-local-windows.ps1 -Start` scarica Java portatile e 
 
 Una sessione non si riavvia: per ripartire da zero si crea un **sid nuovo** (`npm run seed -- --sid demo-02`, oppure dalla regia «Nuova sessione»).
 
+La regia genera un identificativo casuale univoco: puoi creare più prove nello stesso minuto. LIM e regia si spostano insieme sulla nuova lobby; sui telefoni occorre **scansionare il nuovo QR**, perché i link precedenti restano associati alla vecchia sessione. I nuovi giocatori entrano durante lobby e Pixel Wall; dopo queste fasi l’ingresso è chiuso.
+
 ### Telefoni sulla stessa rete Wi-Fi (facoltativo)
 
 Di default API e frontend rispondono solo al portatile. Per far entrare telefoni veri in LAN:
