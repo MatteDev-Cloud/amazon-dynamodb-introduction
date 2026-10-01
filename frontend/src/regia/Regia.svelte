@@ -23,6 +23,7 @@
   let rect = $state<{ x1: number; y1: number; x2: number; y2: number }>();
   let armed = $state('');
   let working = $state('');
+  let creatingSession = $state(false);
 
   const channel = openChannel(onMessage);
   const swarm = new Swarm(session, m => channel.send(m));
@@ -138,17 +139,18 @@
 
   /** A fresh session (new sid) for a clean run: created on the same API, then LIM and Regia move to it together. */
   async function newSession() {
-    const d = new Date(), pad = (n: number) => String(n).padStart(2, '0');
-    const base = config.sid.replace(/-\d{4}-\d{4}$/, '').slice(0, 30) || 'demo';
-    const sid = `${base}-${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
-    if (!config.mock) {
-      try { await api.call<Meta>('/admin/reset', {}, sid); }
-      catch (e) { note(`Nuova sessione non creata: ${message(e)}`, true); return; }
-    }
-    note(`Sessione ${sid} creata: LIM e regia si spostano lì.`);
-    sessionStorage.removeItem(`dynamolive:talk-start:${sid}`);
-    send({ t: 'navigate', params: { s: sid }, key: api.admin });
-    setTimeout(() => navigate({ s: sid }, api.admin), 300);
+    if (creatingSession) return;
+    creatingSession = true;
+    const base = config.sid.replace(/-\d{4}-\d{4}$/, '').replace(/-run-[a-f0-9]{32}$/, '').slice(0, 11) || 'demo';
+    const sid = `${base}-run-${crypto.randomUUID().replaceAll('-', '')}`;
+    try {
+      if (!config.mock) await api.call<Meta>('/admin/reset', {}, sid);
+      swarm.stop();
+      note(`Sessione ${sid} creata. Per entrare, scansionate il nuovo QR sulla LIM.`);
+      sessionStorage.removeItem(`dynamolive:talk-start:${sid}`);
+      send({ t: 'navigate', params: { s: sid }, key: api.admin });
+      setTimeout(() => navigate({ s: sid }, api.admin), 300);
+    } catch (e) { note(`Nuova sessione non creata: ${message(e)}`, true); creatingSession = false; }
   }
   function local() {
     const params = { api: import.meta.env.VITE_LOCAL_API || 'local', s: import.meta.env.VITE_LOCAL_SESSION || 'prova-01', mode: null };
@@ -386,7 +388,8 @@
     </div>
     <div class="row wrap">
       <button class="btn small danger" class:armed={armed === 'reload'} onclick={() => confirm('reload', () => send({ t: 'reload' }))} disabled={!linked}>{armed === 'reload' ? 'Conferma ricarica' : 'Ricarica LIM'}</button>
-      <button class="btn small danger" class:armed={armed === 'new'} onclick={() => confirm('new', newSession)} disabled={!api.admin && !config.mock}>{armed === 'new' ? 'Conferma nuova sessione' : 'Nuova sessione (riparte da zero)'}</button>
+      <button class="btn small danger" class:armed={armed === 'new'} onclick={() => confirm('new', newSession)} disabled={creatingSession || (!api.admin && !config.mock)}>{creatingSession ? 'Creazione sessione…' : armed === 'new' ? 'Conferma nuova sessione' : 'Nuova sessione (riparte da zero)'}</button>
+      <p class="muted">Puoi ripetere le prove anche subito. Ogni nuova sessione ha un nuovo QR: scansionalo di nuovo sui telefoni.</p>
       <!-- An HTTPS page cannot reliably call a backend on http://localhost (mixed content, private network access): offer it only to a local frontend. -->
       {#if backend.kind !== 'local' && !config.mock && location.protocol === 'http:'}
         <button class="btn small danger" class:armed={armed === 'local'} onclick={() => confirm('local', local)}>{armed === 'local' ? 'Conferma passaggio' : 'Passa al backend locale'}</button>
